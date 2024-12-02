@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
               const htmlContent = results[0].result;
 
               // Send the HTML content to the Flask backend
-              fetch('http://localhost:5000/log_html', {
+              fetch('http://localhost:5000/analyze_page', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json'
@@ -27,14 +27,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 .then(response => response.json())
                 .then(data => {
                   if (data.success) {
-                    alert('HTML logged successfully!');
+                    const contentId = data.content_id;
+
+                    // Open a new tab to display the analysis page
+                    const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
+                    chrome.tabs.create({ url: analysisUrl });
                   } else {
                     alert(`Error: ${data.error}`);
                   }
                 })
                 .catch(error => {
-                  console.error('Error logging HTML:', error);
-                  alert('An error occurred while logging the HTML.');
+                  console.error('Error sending HTML:', error);
+                  alert('An error occurred while sending the HTML.');
                 });
             } else {
               alert('Failed to retrieve HTML content.');
