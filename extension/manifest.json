@@ -12,5 +12,8 @@
     "default_popup": "popup/popup.html",
     "default_title": "Default Title"
   },
-  "permissions": []
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ]
 }
