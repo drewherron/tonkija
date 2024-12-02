@@ -1,6 +1,11 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+
+# Enable CORS
+CORS(app, origins=['chrome-extension://kdlakjfngkhjnlgmgjigkcpagbcldmpm'])
 
 # HTML logging route
 # This is just a test to see if we can get data
@@ -13,7 +18,7 @@ def log_html():
         html_content = data.get('html', '')
 
         # For now, just append the HTML to a log file
-        with open('webpage.log', 'a') as log_file:
+        with open('webpage.log', 'a', encoding='utf-8') as log_file:
             log_file.write(html_content + '\n\n')
 
         # Respond with success
