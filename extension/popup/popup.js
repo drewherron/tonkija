@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function () {
-  document.getElementById('log-html').addEventListener('click', function () {
+  // Analyze Page button
+  document.getElementById('analyze-page').addEventListener('click', function () {
     // Query the currently active tab
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       const tab = tabs[0];
@@ -49,5 +50,39 @@ document.addEventListener('DOMContentLoaded', function () {
         alert('This extension cannot run on special Chrome pages (e.g., chrome://, about:).');
       }
     });
+  });
+
+  // Analyze Code button
+  document.getElementById('analyze-code').addEventListener('click', function () {
+    const codeContent = document.getElementById('code-input').value.trim();
+
+    if (codeContent) {
+      // Send the code content to the Flask backend
+      fetch('http://localhost:5000/analyze_code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code: codeContent })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            const contentId = data.content_id;
+
+            // Open a new tab to display the analysis page
+            const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
+            chrome.tabs.create({ url: analysisUrl });
+          } else {
+            alert(`Error: ${data.error}`);
+          }
+        })
+        .catch(error => {
+          console.error('Error sending code:', error);
+          alert('An error occurred while sending the code.');
+        });
+    } else {
+      alert('Please paste your code into the text box.');
+    }
   });
 });
