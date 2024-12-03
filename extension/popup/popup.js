@@ -21,6 +21,29 @@ document.addEventListener('DOMContentLoaded', function () {
     updateApiStatusMessage();
   });
 
+  // Clear API key when LLM provider is changed
+  const providerRadios = document.querySelectorAll('input[name="provider"]');
+  providerRadios.forEach(function(radio) {
+    radio.addEventListener('change', function() {
+      document.getElementById('api-key').value = '';
+    });
+  });
+
+  loadSettings();
+  updateApiStatusMessage();
+
+  // Function to update the API status message
+  function updateApiStatusMessage() {
+    chrome.storage.sync.get(['provider', 'apiKey'], function (data) {
+      const apiStatusMessage = document.getElementById('api-status-message');
+      if (data.apiKey && data.provider) {
+        apiStatusMessage.textContent = `Using ${data.provider.charAt(0).toUpperCase() + data.provider.slice(1)}.`;
+      } else {
+        apiStatusMessage.textContent = 'Please add an API key.';
+      }
+    });
+  }
+
   // Save settings
   document.getElementById('save-settings').addEventListener('click', function () {
     const provider = document.querySelector('input[name="provider"]:checked').value;
@@ -38,7 +61,16 @@ document.addEventListener('DOMContentLoaded', function () {
       settingsContent.style.display = 'none';
       mainContent.style.display = 'block';
     });
-  });
+      chrome.storage.sync.set({ provider, apiKey }, function () {
+        alert('Settings saved successfully!');
+        // Optionally, return to the main content
+        settingsContent.style.display = 'none';
+        mainContent.style.display = 'block';
+        document.body.classList.remove('settings-hidden'); // Show the gear icon
+        updateApiStatusMessage(); // Update the API status message
+      });
+    });
+//  });
 
   // Load saved settings
   function loadSettings() {
@@ -134,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Retrieve user settings
     chrome.storage.sync.get(['provider', 'apiKey'], function (data) {
-      const provider = data.provider || 'openai'; // Default to OpenAI if not set
+      const provider = data.provider || 'openai';
       const apiKey = data.apiKey || '';
 
       if (!apiKey) {
