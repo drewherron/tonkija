@@ -36,8 +36,26 @@ document.addEventListener('DOMContentLoaded', function () {
   function updateApiStatusMessage() {
     chrome.storage.sync.get(['provider', 'apiKey'], function (data) {
       const apiStatusMessage = document.getElementById('api-status-message');
+
       if (data.apiKey && data.provider) {
-        apiStatusMessage.textContent = `Using ${data.provider.charAt(0).toUpperCase() + data.provider.slice(1)}.`;
+        let providerDisplayName;
+
+        // Map provider keys to properly formatted names
+        switch (data.provider) {
+          case 'openai':
+            providerDisplayName = 'OpenAI';
+            break;
+          case 'anthropic':
+            providerDisplayName = 'Anthropic';
+            break;
+          case 'google':
+            providerDisplayName = 'Google';
+            break;
+          default:
+            providerDisplayName = data.provider; // Fallback to raw value
+        }
+
+        apiStatusMessage.textContent = `Currently using ${providerDisplayName}.`;
       } else {
         apiStatusMessage.textContent = 'Please add an API key.';
       }
