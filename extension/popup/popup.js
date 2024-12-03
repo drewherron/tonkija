@@ -9,13 +9,16 @@ document.addEventListener('DOMContentLoaded', function () {
   settingsIcon.addEventListener('click', function () {
     mainContent.style.display = 'none';
     settingsContent.style.display = 'block';
-    loadSettings(); // Load saved settings when opening
+    document.body.classList.add('settings-hidden');
+    loadSettings();
   });
 
   // Back to main content
   backButton.addEventListener('click', function () {
     settingsContent.style.display = 'none';
     mainContent.style.display = 'block';
+    document.body.classList.remove('settings-hidden');
+    updateApiStatusMessage();
   });
 
   // Save settings
