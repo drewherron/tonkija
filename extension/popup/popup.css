@@ -20,12 +20,12 @@ body {
 
 #header h1 {
   margin: 0;
-  font-size: 30px;
+  font-size: 40px;
   color: #75c492;
-  font-family: 'Courier New', Courier, monospace;
-  font-weight: bold;
   flex-grow: 1;
   text-align: center;
+  font-family: "Rubik Iso", system-ui;
+  font-weight: 400;
 }
 
 /* Gear Icon Styles */
