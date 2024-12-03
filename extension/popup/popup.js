@@ -21,14 +21,7 @@ document.addEventListener('DOMContentLoaded', function () {
     updateApiStatusMessage();
   });
 
-  // Clear API key when LLM provider is changed
-  const providerRadios = document.querySelectorAll('input[name="provider"]');
-  providerRadios.forEach(function(radio) {
-    radio.addEventListener('change', function() {
-      document.getElementById('api-key').value = '';
-    });
-  });
-
+  // Load saved settings when the popup is opened
   loadSettings();
   updateApiStatusMessage();
 
