@@ -72,3 +72,25 @@ body.settings-hidden #settings-icon {
   flex-basis: 48%;
   margin-top: 0;
 }
+
+/* Textarea Styles */
+textarea {
+  background-color: #1e1e1e;
+  color: #fffad3;
+  border: 1px solid #75c492;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  font-size: 14px;
+}
+
+/* Input Styles */
+input[type="password"] {
+  background-color: #1e1e1e;
+  color: #fffad3;
+  border: 1px solid #75c492;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  font-size: 14px;
+}
