@@ -11,20 +11,18 @@
   <div id="header">
     <h1 class="rubik-iso-regular">Tonkija</h1>
     <img src="../icons/gear.png" id="settings-icon" alt="Settings" title="Settings">
-    <button id="back-button">&larr; Back</button>
   </div>
 
   <div id="main-content">
     <p>Analyze code in page:</p>
-    <button id="analyze-page">Analyze Page</button>
+    <button id="analyze-page" class="styled-button">Analyze Page</button>
 
     <hr>
 
     <p>Or analyze your own code:</p>
     <textarea id="code-input" placeholder="Paste your code here..." rows="6" cols="30"></textarea>
     <br>
-    <button id="analyze-code">Analyze Code</button>
-
+    <button id="analyze-code" class="styled-button">Analyze Code</button>
     <p id="api-status-message"></p>
   </div>
 
@@ -39,7 +37,11 @@
     <p>Enter your API Key:</p>
     <input type="password" id="api-key" placeholder="API Key">
     <br><br>
-    <button id="save-settings">Save Settings</button>
+
+    <div id="settings-buttons">
+      <button id="save-settings" class="styled-button">Save Settings</button>
+      <button id="cancel-settings" class="styled-button">Cancel</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>

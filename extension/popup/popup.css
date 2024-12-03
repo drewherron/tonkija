@@ -38,41 +38,37 @@ body {
   cursor: pointer;
 }
 
-/* Back Button Styles */
-#back-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 5px 10px;
-  background: none;
-  border: none;
-  color: #fffad3;
-  font-size: 14px;
-  cursor: pointer;
-  display: none;
-}
-
 /* Hide settings icon on settings page */
-.settings-hidden #settings-icon {
+body.settings-hidden #settings-icon {
   display: none;
 }
 
-/* Show back button on settings page */
-.settings-hidden #back-button {
-  display: block;
+/* Common Button Styles */
+.styled-button {
+  padding: 10px;
+  font-size: 14px;
+  background-color: #1e1e1e;
+  color: #fffad3;
+  border: 1px solid #75c492;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  margin-top: 10px;
 }
 
-/* Buttons */
-button {
-  font-size: 14px;
+.styled-button:hover {
+  background-color: #333333;
 }
 
-/* Textarea */
-textarea {
-  font-size: 14px;
+/* Buttons in settings */
+#settings-buttons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
 }
 
-/* Input */
-input[type="password"] {
-  font-size: 14px;
+#settings-buttons .styled-button {
+  flex-basis: 48%;
+  margin-top: 0;
 }

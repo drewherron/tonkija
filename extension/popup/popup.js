@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', function () {
   // Elements
   const settingsIcon = document.getElementById('settings-icon');
-  const backButton = document.getElementById('back-button');
   const mainContent = document.getElementById('main-content');
   const settingsContent = document.getElementById('settings-content');
+  const cancelButton = document.getElementById('cancel-settings');
 
   // Show settings page
   settingsIcon.addEventListener('click', function () {
@@ -13,13 +13,43 @@ document.addEventListener('DOMContentLoaded', function () {
     loadSettings();
   });
 
-  // Back to main content
-  backButton.addEventListener('click', function () {
+  // Cancel button: Return to the main content without saving
+  cancelButton.addEventListener('click', function () {
     settingsContent.style.display = 'none';
     mainContent.style.display = 'block';
     document.body.classList.remove('settings-hidden');
-    updateApiStatusMessage();
   });
+
+  // Save settings
+  document.getElementById('save-settings').addEventListener('click', function () {
+    const provider = document.querySelector('input[name="provider"]:checked').value;
+    const apiKey = document.getElementById('api-key').value.trim();
+
+    if (!apiKey) {
+      alert('Please enter your API key.');
+      return;
+    }
+
+    chrome.storage.sync.set({ provider, apiKey }, function () {
+      alert('Settings saved successfully!');
+      settingsContent.style.display = 'none';
+      mainContent.style.display = 'block';
+      document.body.classList.remove('settings-hidden');
+      updateApiStatusMessage();
+    });
+  });
+
+  // Function to load saved settings
+  function loadSettings() {
+    chrome.storage.sync.get(['provider', 'apiKey'], function (data) {
+      if (data.provider) {
+        document.querySelector(`input[name="provider"][value="${data.provider}"]`).checked = true;
+      }
+      if (data.apiKey) {
+        document.getElementById('api-key').value = data.apiKey;
+      }
+    });
+  }
 
   // Load saved settings when the popup is opened
   loadSettings();
@@ -51,46 +81,6 @@ document.addEventListener('DOMContentLoaded', function () {
         apiStatusMessage.textContent = `Currently using ${providerDisplayName}.`;
       } else {
         apiStatusMessage.textContent = 'Please add an API key.';
-      }
-    });
-  }
-
-  // Save settings
-  document.getElementById('save-settings').addEventListener('click', function () {
-    const provider = document.querySelector('input[name="provider"]:checked').value;
-    const apiKey = document.getElementById('api-key').value.trim();
-
-    if (!apiKey) {
-      alert('Please enter your API key.');
-      return;
-    }
-
-    // Save settings using Chrome storage API
-    chrome.storage.sync.set({ provider, apiKey }, function () {
-      alert('Settings saved successfully!');
-      // Optionally, return to the main content
-      settingsContent.style.display = 'none';
-      mainContent.style.display = 'block';
-    });
-      chrome.storage.sync.set({ provider, apiKey }, function () {
-        alert('Settings saved successfully!');
-        // Optionally, return to the main content
-        settingsContent.style.display = 'none';
-        mainContent.style.display = 'block';
-        document.body.classList.remove('settings-hidden'); // Show the gear icon
-        updateApiStatusMessage(); // Update the API status message
-      });
-    });
-//  });
-
-  // Load saved settings
-  function loadSettings() {
-    chrome.storage.sync.get(['provider', 'apiKey'], function (data) {
-      if (data.provider) {
-        document.querySelector(`input[name="provider"][value="${data.provider}"]`).checked = true;
-      }
-      if (data.apiKey) {
-        document.getElementById('api-key').value = data.apiKey;
       }
     });
   }
