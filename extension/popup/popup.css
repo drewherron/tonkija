@@ -1,39 +1,78 @@
+/* General Styles */
 body {
   font-family: Arial, sans-serif;
+  font-size: 14px;
   padding: 10px;
   width: 300px;
+  background-color: #272a32;
+  color: #fffad3;
+  box-sizing: border-box;
 }
 
+/* Header styling */
 #header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  position: relative;
+  height: 50px;
 }
 
 #header h1 {
   margin: 0;
+  font-size: 30px;
+  color: #75c492;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: bold;
+  flex-grow: 1;
+  text-align: center;
 }
 
+/* Gear Icon Styles */
 #settings-icon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
   width: 24px;
   height: 24px;
   cursor: pointer;
 }
 
-#settings-content {
+/* Back Button Styles */
+#back-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  color: #fffad3;
+  font-size: 14px;
+  cursor: pointer;
   display: none;
 }
 
-#back-button {
-  margin-bottom: 10px;
-}
-
+/* Hide settings icon on settings page */
 .settings-hidden #settings-icon {
   display: none;
 }
 
-#api-status-message {
-  margin-top: 10px;
+/* Show back button on settings page */
+.settings-hidden #back-button {
+  display: block;
+}
+
+/* Buttons */
+button {
   font-size: 14px;
-  color: #555;
+}
+
+/* Textarea */
+textarea {
+  font-size: 14px;
+}
+
+/* Input */
+input[type="password"] {
+  font-size: 14px;
 }
