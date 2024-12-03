@@ -5,16 +5,38 @@
   <link rel="stylesheet" type="text/css" href="popup.css">
 </head>
 <body>
-  <h1>Tonkija</h1>
-  <p>Analyze code in page:</p>
-  <button id="analyze-page">Analyze Page</button>
+  <!-- Gear Icon -->
+  <div id="header">
+    <img src="../icons/gear.png" id="settings-icon" alt="Settings" title="Settings">
+    <h1>Tonkija</h1>
+  </div>
 
-  <hr>
+  <div id="main-content">
+    <p>Analyze code in page:</p>
+    <button id="analyze-page">Analyze Page</button>
 
-  <p>Or analyze your own code:</p>
-  <textarea id="code-input" placeholder="Paste your code here..." rows="6" cols="30"></textarea>
-  <br>
-  <button id="analyze-code">Analyze Code</button>
+    <hr>
+
+    <p>Or analyze your own code:</p>
+    <textarea id="code-input" placeholder="Paste your code here..." rows="6" cols="30"></textarea>
+    <br>
+    <button id="analyze-code">Analyze Code</button>
+  </div>
+
+  <!-- Settings Content -->
+  <div id="settings-content" style="display: none;">
+    <button id="back-button">&larr; Back</button>
+    <h2>Settings</h2>
+    <p>Select LLM Provider:</p>
+    <label><input type="radio" name="provider" value="openai" checked> OpenAI</label><br>
+    <label><input type="radio" name="provider" value="anthropic"> Anthropic</label><br>
+    <label><input type="radio" name="provider" value="google"> Google</label><br>
+
+    <p>Enter your API Key:</p>
+    <input type="password" id="api-key" placeholder="API Key">
+    <br><br>
+    <button id="save-settings">Save Settings</button>
+  </div>
 
   <script src="popup.js"></script>
 </body>
