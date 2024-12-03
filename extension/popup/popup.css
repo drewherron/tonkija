@@ -26,6 +26,14 @@ body {
   text-align: center;
   font-family: "Rubik Iso", system-ui;
   font-weight: 400;
+  transform: translateX(-12%);
+}
+
+#pig {
+  max-width: 22%;
+  height: auto
+  position: relative;
+  transform: translateX(10%);
 }
 
 /* Gear Icon Styles */
