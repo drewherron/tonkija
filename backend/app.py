@@ -2,75 +2,89 @@ from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 import uuid
 
+
 app = Flask(__name__)
 CORS(app, origins=['chrome-extension://*'])
 
-# In-memory storage for content, mapping IDs to content and type
-content_storage = {}
+# In-memory storage for analysis results
+analysis_storage = {}
 
-# Route to receive and store HTML content
+def perform_analysis(content, provider, api_key, content_type):
+    # TODO: Implement actual analysis logic here
+    # Just a placeholder for now
+    if content_type == 'html':
+        analysis_result = f"Performed HTML analysis using {provider}."
+    else:
+        analysis_result = f"Performed code analysis using {provider}."
+    return analysis_result
+
+
+# Route to receive and analyze HTML content
 @app.route('/analyze_page', methods=['POST'])
 def analyze_page():
     try:
         data = request.get_json()
         html_content = data.get('html', '')
+        provider = data.get('provider', 'openai')
+        api_key = data.get('apiKey', '')
 
-        # Generate a unique ID for this content
+        if not api_key:
+            return jsonify({"success": False, "error": "API key is required."}), 400
+
+        # Perform analysis using the provided API key and provider
+        analysis_result = perform_analysis(html_content, provider, api_key, 'html')
+
+        # Store the analysis result
         content_id = str(uuid.uuid4())
-
-        # Store the content with its type
-        content_storage[content_id] = {
-            'type': 'html',
-            'content': html_content
+        analysis_storage[content_id] = {
+            'type': 'analysis',
+            'content': analysis_result,
+            'content_label': 'Webpage Analysis'
         }
 
-        # Return the content ID to the client
         return jsonify({"success": True, "content_id": content_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# Route to receive and store code content
+# Route to receive and analyze code content
 @app.route('/analyze_code', methods=['POST'])
 def analyze_code():
     try:
         data = request.get_json()
         code_content = data.get('code', '')
+        provider = data.get('provider', 'openai')
+        api_key = data.get('apiKey', '')
 
-        # Generate a unique ID for this content
+        if not api_key:
+            return jsonify({"success": False, "error": "API key is required."}), 400
+
+        # Perform analysis using the provided API key and provider
+        analysis_result = perform_analysis(code_content, provider, api_key, 'code')
+
+        # Store the analysis result
         content_id = str(uuid.uuid4())
-
-        # Store the content with its type
-        content_storage[content_id] = {
-            'type': 'code',
-            'content': code_content
+        analysis_storage[content_id] = {
+            'type': 'analysis',
+            'content': analysis_result,
+            'content_label': 'Code Analysis'
         }
 
-        # Return the content ID to the client
         return jsonify({"success": True, "content_id": content_id})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# Route to display the analysis page
+# Route to display the analysis result
 @app.route('/display_analysis')
 def display_analysis():
     # Get the content ID from the query parameters
     content_id = request.args.get('id', None)
 
-    if content_id and content_id in content_storage:
-        stored_data = content_storage[content_id]
-        content_type = stored_data['type']
-        content = stored_data['content']
+    if content_id and content_id in analysis_storage:
+        stored_data = analysis_storage[content_id]
+        analysis_result = stored_data['content']
+        content_label = stored_data['content_label']
 
-        # Render the analysis page based on content type
-        if content_type == 'html':
-            display_content = content  # For now, display the raw HTML
-            content_label = 'HTML Content'
-        elif content_type == 'code':
-            display_content = content
-            content_label = 'Code Content'
-        else:
-            return "Invalid content type.", 400
-
+        # Render the analysis result
         return render_template_string('''
             <!DOCTYPE html>
             <html>
@@ -94,11 +108,11 @@ def display_analysis():
             </head>
             <body>
                 <h1>Tonkija</h1>
-                <p>Here's the analysis of your {{ content_label }}:</p>
-                <pre>{{ display_content }}</pre>
+                <p>{{ content_label }}:</p>
+                <pre>{{ analysis_result }}</pre>
             </body>
             </html>
-        ''', display_content=display_content, content_label=content_label)
+        ''', analysis_result=analysis_result, content_label=content_label)
     else:
         return "Content not found or expired.", 404
 
