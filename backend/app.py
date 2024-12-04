@@ -9,64 +9,28 @@ CORS(app, origins=['chrome-extension://*'])
 # In-memory storage for analysis results
 analysis_storage = {}
 
-def perform_analysis(content, provider, api_key, content_type):
-    # TODO: Implement actual analysis logic here
-    # Just a placeholder for now
-    if content_type == 'html':
-        analysis_result = f"Performed HTML analysis using {provider}."
-    else:
-        analysis_result = f"Performed code analysis using {provider}."
-    return analysis_result
-
-
-# Route to receive and analyze HTML content
-@app.route('/analyze_page', methods=['POST'])
-def analyze_page():
-    try:
-        data = request.get_json()
-        html_content = data.get('html', '')
-        provider = data.get('provider', 'openai')
-        api_key = data.get('apiKey', '')
-
-        if not api_key:
-            return jsonify({"success": False, "error": "API key is required."}), 400
-
-        # Perform analysis using the provided API key and provider
-        analysis_result = perform_analysis(html_content, provider, api_key, 'html')
-
-        # Store the analysis result
-        content_id = str(uuid.uuid4())
-        analysis_storage[content_id] = {
-            'type': 'analysis',
-            'content': analysis_result,
-            'content_label': 'Webpage Analysis'
-        }
-
-        return jsonify({"success": True, "content_id": content_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-# Route to receive and analyze code content
+# Route to receive and store code content
 @app.route('/analyze_code', methods=['POST'])
 def analyze_code():
     try:
         data = request.get_json()
         code_content = data.get('code', '')
         provider = data.get('provider', 'openai')
-        api_key = data.get('apiKey', '')
+        # api_key = data.get('apiKey', '')
 
-        if not api_key:
-            return jsonify({"success": False, "error": "API key is required."}), 400
+        if not code_content:
+            return jsonify({"success": False, "error": "No code content received."}), 400
 
-        # Perform analysis using the provided API key and provider
-        analysis_result = perform_analysis(code_content, provider, api_key, 'code')
+        # No analysis for now
+        # Just store the code_content as is, for testing
+        analysis_result = code_content
 
-        # Store the analysis result
+        # Store the code content
         content_id = str(uuid.uuid4())
         analysis_storage[content_id] = {
-            'type': 'analysis',
+            'type': 'code',
             'content': analysis_result,
-            'content_label': 'Code Analysis'
+            'content_label': 'Extracted Code Snippets'
         }
 
         return jsonify({"success": True, "content_id": content_id})
