@@ -141,25 +141,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
           // Check if the URL is valid
           if (tab && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('about:')) {
-            // Execute the script to get the HTML content
+            // Execute the script to get the code snippets
             chrome.scripting.executeScript(
               {
                 target: { tabId: tab.id },
-                func: () => document.documentElement.outerHTML
+                func: () => {
+                  // Extract code snippets from the page
+                  const codeElements = document.querySelectorAll('pre, code, .code, .code-block');
+                  let codeSnippets = '';
+                  codeElements.forEach((el) => {
+                    codeSnippets += el.innerText + '\n\n';
+                  });
+                  return codeSnippets;
+                }
               },
               (results) => {
                 if (results && results[0] && results[0].result) {
-                  const htmlContent = results[0].result;
+                  const codeContent = results[0].result.trim();
+
+                  if (!codeContent) {
+                    alert('No code snippets found on this page.');
+                    return;
+                  }
 
                   // Prepare the payload
                   const payload = {
                     provider,
                     apiKey,
-                    html: htmlContent
+                    code: codeContent
                   };
 
-                  // Send the HTML content and settings to the Flask backend
-                  fetch('http://localhost:5000/analyze_page', {
+                  // Send the code content and settings to the Flask backend
+                  fetch('http://localhost:5000/analyze_code', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json'
@@ -179,11 +192,11 @@ document.addEventListener('DOMContentLoaded', function () {
                       }
                     })
                     .catch(error => {
-                      console.error('Error sending HTML:', error);
-                      alert('An error occurred while sending the HTML.');
+                      console.error('Error sending code:', error);
+                      alert('An error occurred while sending the code.');
                     });
                 } else {
-                  alert('Failed to retrieve HTML content.');
+                  alert('Failed to retrieve code snippets.');
                 }
               }
             );
