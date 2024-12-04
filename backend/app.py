@@ -70,6 +70,9 @@ def display_analysis():
             <html>
             <head>
                 <title>Tonkija Analysis</title>
+                <link rel="preconnect" href="https://fonts.googleapis.com">
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Indie+Flower&family=Marcellus&family=Paytone+One&family=Rubik+Iso&family=Teko:wght@300..700&display=swap" rel="stylesheet">
                 <style>
                     body {
                         font-family: Arial, sans-serif;
@@ -78,7 +81,11 @@ def display_analysis():
                         color: #fffad3;
                     }
                     h1 {
+                        text-align: center;
                         color: #75c492;
+                        font-size: 45px;
+                        font-family: "Rubik Iso", system-ui;
+                        font-weight: 400;
                     }
                     pre {
                         background-color: #1e1e1e;
