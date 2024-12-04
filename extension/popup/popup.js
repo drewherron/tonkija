@@ -5,6 +5,13 @@ document.addEventListener('DOMContentLoaded', function () {
   const settingsContent = document.getElementById('settings-content');
   const cancelButton = document.getElementById('cancel-settings');
 
+  // Clear the API key when a provider is selected
+  document.querySelectorAll('input[name="provider"]').forEach((radio) => {
+    radio.addEventListener('change', function () {
+      document.getElementById('api-key').value = '';
+    });
+  });
+
   // Show settings page
   settingsIcon.addEventListener('click', function () {
     mainContent.style.display = 'none';
