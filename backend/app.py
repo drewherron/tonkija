@@ -58,15 +58,18 @@ def display_analysis():
                     body {
                         font-family: Arial, sans-serif;
                         margin: 20px;
+                        background-color: #272a32;
+                        color: #fffad3;
                     }
                     h1 {
-                        color: #333;
+                        color: #75c492;
                     }
                     pre {
-                        background-color: #f4f4f4;
+                        background-color: #1e1e1e;
                         padding: 10px;
-                        border: 1px solid #ddd;
+                        border: 1px solid #75c492;
                         overflow: auto;
+                        color: #fffad3;
                     }
                 </style>
             </head>
