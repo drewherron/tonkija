@@ -148,18 +148,25 @@ document.addEventListener('DOMContentLoaded', function () {
                 func: () => {
                   // Extract code snippets from the page
                   const codeElements = document.querySelectorAll('pre, code, .code, .code-block');
-                  let codeSnippets = '';
-                  codeElements.forEach((el) => {
-                    codeSnippets += el.innerText + '\n\n';
+                  const codeBlocks = [];
+                  codeElements.forEach((el, index) => {
+                    // Assign a unique ID to each code element
+                    const uniqueId = `tonkija-code-block-${index}`;
+                    el.setAttribute('data-tonkija-id', uniqueId);
+
+                    codeBlocks.push({
+                      id: uniqueId,
+                      content: el.innerText
+                    });
                   });
-                  return codeSnippets;
+                  return codeBlocks;
                 }
               },
               (results) => {
                 if (results && results[0] && results[0].result) {
-                  const codeContent = results[0].result.trim();
+                  const codeBlocks = results[0].result;
 
-                  if (!codeContent) {
+                  if (!codeBlocks || codeBlocks.length === 0) {
                     alert('No code snippets found on this page.');
                     return;
                   }
@@ -168,11 +175,11 @@ document.addEventListener('DOMContentLoaded', function () {
                   const payload = {
                     provider,
                     apiKey,
-                    code: codeContent
+                    codeBlocks
                   };
 
-                  // Send the code content and settings to the Flask backend
-                  fetch('http://localhost:5000/analyze_code', {
+                  // Send the code blocks to the Flask backend
+                  fetch('http://localhost:5000/analyze_code_blocks', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json'
@@ -192,8 +199,8 @@ document.addEventListener('DOMContentLoaded', function () {
                       }
                     })
                     .catch(error => {
-                      console.error('Error sending code:', error);
-                      alert('An error occurred while sending the code.');
+                      console.error('Error sending code blocks:', error);
+                      alert('An error occurred while sending the code blocks.');
                     });
                 } else {
                   alert('Failed to retrieve code snippets.');
@@ -230,15 +237,21 @@ document.addEventListener('DOMContentLoaded', function () {
           return;
         }
 
+        // Prepare the code block as a one-element array
+        const codeBlocks = [{
+          id: 'user-input-code',
+          content: codeContent
+        }];
+
         // Prepare the payload
         const payload = {
           provider,
           apiKey,
-          code: codeContent
+          codeBlocks
         };
 
-        // Send the code content and settings to the Flask backend
-        fetch('http://localhost:5000/analyze_code', {
+        // Send the code blocks to the Flask backend
+        fetch('http://localhost:5000/analyze_code_blocks', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -258,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
           })
           .catch(error => {
-            console.error('Error sending code:', error);
+            console.error('Error sending code blocks:', error);
             alert('An error occurred while sending the code.');
           });
       });

@@ -9,28 +9,44 @@ CORS(app, origins=['chrome-extension://*'])
 # In-memory storage for analysis results
 analysis_storage = {}
 
-# Route to receive and store code content
-@app.route('/analyze_code', methods=['POST'])
-def analyze_code():
+# Route to receive and analyze code blocks
+@app.route('/analyze_code_blocks', methods=['POST'])
+def analyze_code_blocks():
     try:
         data = request.get_json()
-        code_content = data.get('code', '')
+        code_blocks = data.get('codeBlocks', [])
         provider = data.get('provider', 'openai')
-        # api_key = data.get('apiKey', '')
+        api_key = data.get('apiKey', '')
 
-        if not code_content:
-            return jsonify({"success": False, "error": "No code content received."}), 400
+        if not api_key:
+            return jsonify({"success": False, "error": "API key is required."}), 400
 
-        # No analysis for now
-        # Just store the code_content as is, for testing
-        analysis_result = code_content
+        if not code_blocks:
+            return jsonify({"success": False, "error": "No code blocks received."}), 400
 
-        # Store the code content
+        # TODO
+        # For each code block, perform analysis
+        analysis_results = []
+        for code_block in code_blocks:
+            code_content = code_block['content']
+            code_id = code_block['id']
+
+            # Perform analysis on code_content
+            # Nothing here yet
+            analysis_result = f"Analysis for code block {code_id}\n?????."
+
+            analysis_results.append({
+                'id': code_id,
+                'code_block': code_content,
+                'analysis_result': analysis_result
+            })
+
+        # Store the analysis results
         content_id = str(uuid.uuid4())
         analysis_storage[content_id] = {
-            'type': 'code',
-            'content': analysis_result,
-            'content_label': 'Extracted Code Snippets'
+            'type': 'analysis',
+            'content': analysis_results,
+            'content_label': 'Code Blocks Analysis'
         }
 
         return jsonify({"success": True, "content_id": content_id})
@@ -45,7 +61,7 @@ def display_analysis():
 
     if content_id and content_id in analysis_storage:
         stored_data = analysis_storage[content_id]
-        analysis_result = stored_data['content']
+        analysis_results = stored_data['content']
         content_label = stored_data['content_label']
 
         # Render the analysis result
@@ -71,15 +87,29 @@ def display_analysis():
                         overflow: auto;
                         color: #fffad3;
                     }
+                    .code-block {
+                        margin-bottom: 20px;
+                    }
+                    .code-title {
+                        font-weight: bold;
+                        margin-bottom: 5px;
+                    }
                 </style>
             </head>
             <body>
                 <h1>Tonkija</h1>
                 <p>{{ content_label }}:</p>
-                <pre>{{ analysis_result }}</pre>
+                {% for item in analysis_results %}
+                    <div class="code-block">
+                        <div class="code-title">Code Block {{ loop.index }}:</div>
+                        <pre>{{ item.code_block }}</pre>
+                        <div class="code-title">Analysis:</div>
+                        <pre>{{ item.analysis_result }}</pre>
+                    </div>
+                {% endfor %}
             </body>
             </html>
-        ''', analysis_result=analysis_result, content_label=content_label)
+        ''', analysis_results=analysis_results, content_label=content_label)
     else:
         return "Content not found or expired.", 404
 
