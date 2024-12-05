@@ -155,10 +155,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Apply some filtering criteria
                     const minLength = 20;
                     const minWords = 3;
+                    // Might keep using length/words alone
+                    // but for now:
+                    // Define a set of common programming keywords
+                    const keywords = ['function', 'var', 'let', 'const', 'if', 'else', 'for', 'while', 'class', 'def', 'import', 'public', 'private', 'return', 'try', 'catch'];
+                    // Check for the presence of keywords
+                    const containsKeyword = keywords.some(keyword => codeContent.includes(keyword));
+                    // Check for syntax characters
+                    const syntaxChars = /[;{}()\[\]=><]/;
+                    const containsSyntax = syntaxChars.test(codeContent);
 
                     // Check if codeContent meets the criteria
-                    if (codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords)
-                    {
+                    if (
+                      (codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords) ||
+                      (containsKeyword &&
+                       containsSyntax)
+                    ) {
                       // Assign a unique ID to each code element
                       const uniqueId = `tonkija-code-block-${index}`;
                       el.setAttribute('data-tonkija-id', uniqueId);
