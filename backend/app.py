@@ -22,7 +22,7 @@ def analyze_code_blocks():
             return jsonify({"success": False, "error": "API key is required."}), 400
 
         if not code_blocks:
-            return jsonify({"success": False, "error": "No code blocks received."}), 400
+            return jsonify({"success": False, "error": "No suitable code blocks found for analysis."}), 400
 
         # TODO
         # For each code block, perform analysis
@@ -73,6 +73,10 @@ def display_analysis():
                 <link rel="preconnect" href="https://fonts.googleapis.com">
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
                 <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Indie+Flower&family=Marcellus&family=Paytone+One&family=Rubik+Iso&family=Teko:wght@300..700&display=swap" rel="stylesheet">
+
+                <!-- Highlight.js CSS -->
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+
                 <style>
                     body {
                         font-family: Arial, sans-serif;
@@ -109,11 +113,19 @@ def display_analysis():
                 {% for item in analysis_results %}
                     <div class="code-block">
                         <div class="code-title">Code Block {{ loop.index }}:</div>
-                        <pre>{{ item.code_block }}</pre>
+                        <!-- Wrap code in <pre><code> and escape it -->
+                        <pre><code>{{ item.code_block | e }}</code></pre>
                         <div class="code-title">Analysis:</div>
                         <pre>{{ item.analysis_result }}</pre>
                     </div>
                 {% endfor %}
+
+                <!-- Highlight.js Script -->
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+                <script>
+                  // Initialize highlight.js
+                  hljs.highlightAll();
+                </script>
             </body>
             </html>
         ''', analysis_results=analysis_results, content_label=content_label)
