@@ -33,7 +33,7 @@ def analyze_code_blocks():
 
             # Perform analysis on code_content
             # Nothing here yet
-            analysis_result = f"Analysis for code block {code_id}\n?????."
+            analysis_result = f"Analysis for code block {code_id}\n?????"
 
             analysis_results.append({
                 'id': code_id,

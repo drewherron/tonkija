@@ -150,14 +150,24 @@ document.addEventListener('DOMContentLoaded', function () {
                   const codeElements = document.querySelectorAll('pre, code, .code, .code-block');
                   const codeBlocks = [];
                   codeElements.forEach((el, index) => {
-                    // Assign a unique ID to each code element
-                    const uniqueId = `tonkija-code-block-${index}`;
-                    el.setAttribute('data-tonkija-id', uniqueId);
+                    const codeContent = el.innerText.trim();
 
-                    codeBlocks.push({
-                      id: uniqueId,
-                      content: el.innerText
-                    });
+                    // Apply some filtering criteria
+                    const minLength = 20;
+                    const minWords = 3;
+
+                    // Check if codeContent meets the criteria
+                    if (codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords)
+                    {
+                      // Assign a unique ID to each code element
+                      const uniqueId = `tonkija-code-block-${index}`;
+                      el.setAttribute('data-tonkija-id', uniqueId);
+
+                      codeBlocks.push({
+                        id: uniqueId,
+                        content: codeContent
+                      });
+                    }
                   });
                   return codeBlocks;
                 }
@@ -167,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function () {
                   const codeBlocks = results[0].result;
 
                   if (!codeBlocks || codeBlocks.length === 0) {
-                    alert('No code snippets found on this page.');
+                    alert('No code found on this page.');
                     return;
                   }
 
