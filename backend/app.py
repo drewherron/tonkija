@@ -75,7 +75,7 @@ def display_analysis():
                 <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Indie+Flower&family=Marcellus&family=Paytone+One&family=Rubik+Iso&family=Teko:wght@300..700&display=swap" rel="stylesheet">
 
                 <!-- Highlight.js CSS -->
-                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/default.min.css">
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/base16/default-dark.min.css">
 
                 <style>
                     body {
@@ -92,7 +92,7 @@ def display_analysis():
                         font-weight: 400;
                     }
                     pre {
-                        background-color: #1e1e1e;
+                        background-color: #181818;
                         padding: 10px;
                         border: 1px solid #75c492;
                         overflow: auto;
