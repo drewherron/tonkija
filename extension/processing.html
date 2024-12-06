@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Processing...</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik+Iso&family=Teko:wght@300..700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #272a32;
+      color: #fffad3;
+      margin: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    h1 {
+      font-family: "Rubik Iso", system-ui, Arial, sans-serif;
+      text-align: center;
+      color: #75c492;
+      font-size: 45px;
+      font-weight: 400;
+      margin-bottom: 20px;
+    }
+    p {
+      font-size: 16px;
+      text-align: center;
+    }
+    .spinner {
+      margin-top: 20px;
+      width: 50px;
+      height: 50px;
+      border: 6px solid #75c492;
+      border-top: 6px solid #272a32;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <h1>Tonkija</h1>
+  <p>Analyzing code, please wait...</p>
+  <div class="spinner"></div>
+</body>
+</html>
