@@ -29,37 +29,33 @@ llm = GoogleGenerativeAI(
 @tool
 def vt_analyze_code_snippet(code: str) -> str:
     """
-    This tool takes a code snippet (as a string), writes it to a temporary file,
-    and uploads it to VirusTotal to check if it matches any known malicious files.
-
+    This tool takes a code snippet (as a string) and uploads it directly
+    to VirusTotal to check if it matches any known malicious files.
     Returns the JSON response from VirusTotal as a string.
     """
 
     if not VIRUSTOTAL_API_KEY:
         return json.dumps({"error": "No VirusTotal API key set."})
 
-    # Write code snippet to a temporary file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as temp_file:
-        temp_file.write(code)
-        temp_file_path = temp_file.name
+    # The 'files' parameter in requests can take a tuple (filename, content, content_type)
+    files = {
+        "file": ("snippet.txt", code.encode('utf-8'), "text/plain")
+    }
 
     try:
-        # Upload the file to VirusTotal
         url = "https://www.virustotal.com/api/v3/files"
         headers = {"x-apikey": VIRUSTOTAL_API_KEY}
-        files = {"file": open(temp_file_path, "rb")}
-
         response = requests.post(url, headers=headers, files=files)
 
-        if response.status_code == 200 or response.status_code == 201:
+        if response.status_code in (200, 201):
             return response.text
         else:
-            return json.dumps({"error": f"VirusTotal returned status {response.status_code}", "details": response.text})
+            return json.dumps({
+                "error": f"VirusTotal returned status {response.status_code}",
+                "details": response.text
+            })
     except Exception as e:
         return json.dumps({"error": str(e)})
-    finally:
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
 
 # Set up the agent with the new vt_analyze_code_snippet tool
 tools = [vt_analyze_code_snippet]
