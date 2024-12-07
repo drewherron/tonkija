@@ -9,13 +9,18 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "Default Title"
+    "default_popup": "popup/popup.html"
   },
   "permissions": [
-    "scripting",
     "activeTab",
     "storage",
-    "scripting"
-  ]
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }
