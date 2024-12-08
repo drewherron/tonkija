@@ -214,7 +214,6 @@ def display_analysis():
             </head>
             <body>
                 <h1>Tonkija</h1>
-                <p>{{ content_label }}:</p>
                 {% for item in analysis_results %}
                     <div class="code-block">
                         <div class="code-title">Code Block {{ loop.index }}:</div>
