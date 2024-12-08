@@ -1,6 +1,7 @@
 import os
 import uuid
 import json
+import mistune
 import tempfile
 import subprocess
 import requests
@@ -72,9 +73,10 @@ analysis_storage = {}
 def perform_analysis(content, provider, api_key, content_type):
     prompt = f"""
     You are a security auditor. Analyze the following {content_type} code snippet for potential security vulnerabilities.
-    If there are vulnerabilities, describe them briefly. If no vulnerabilities are found, say 'No vulnerabilities found.'
-
-    Also, as a separate step, use the vt_analyze_code_snippet tool to see if this code snippet appears malicious according to VirusTotal.
+    Use the vt_analyze_code_snippet tool to check if this code snippet appears malicious according to VirusTotal.
+    Use this result, along with your own knowledge, to provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate. Do not repeat the full code snippet, it will be included from another source.
+    If there are vulnerabilities, describe them briefly and provide recommendations. If appropriate, provide the corrected code.
+    If no vulnerabilities are found, say 'No vulnerabilities found.'
 
     Code snippet:
     ```
@@ -84,12 +86,9 @@ def perform_analysis(content, provider, api_key, content_type):
 
     try:
         response = agent_executor.invoke({"input": prompt})
-
-        # Print debug info if needed
         print("Response keys:", response.keys())
         print("Full response:", response)
 
-        # Typically, the final answer should be in response["output"]
         analysis_result = response.get("output", "No output key found in response.")
         return analysis_result.strip()
     except Exception as e:
@@ -100,6 +99,7 @@ def perform_analysis(content, provider, api_key, content_type):
 def analyze_code_blocks():
     try:
         data = request.get_json()
+        print(f"### request.get_json():\n{data}\n###")
         code_blocks = data.get('codeBlocks', [])
         provider = data.get('provider', 'openai')
         api_key = data.get('apiKey', '')
@@ -136,10 +136,13 @@ def analyze_code_blocks():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# Create HTML renderer and Markdown instance
+renderer = mistune.HTMLRenderer()
+markdowner = mistune.create_markdown(renderer=renderer)
+
 # Route to display the analysis result
 @app.route('/display_analysis')
 def display_analysis():
-    # Get the content ID from the query parameters
     content_id = request.args.get('id', None)
 
     if content_id and content_id in analysis_storage:
@@ -147,7 +150,7 @@ def display_analysis():
         analysis_results = stored_data['content']
         content_label = stored_data['content_label']
 
-        # Render the analysis result
+        # Convert analysis_result from Markdown to HTML
         return render_template_string('''
             <!DOCTYPE html>
             <html>
@@ -174,19 +177,38 @@ def display_analysis():
                         font-family: "Rubik Iso", system-ui;
                         font-weight: 400;
                     }
-                    pre {
-                        background-color: #181818;
-                        padding: 10px;
-                        border: 1px solid #75c492;
-                        overflow: auto;
-                        color: #fffad3;
-                    }
                     .code-block {
-                        margin-bottom: 20px;
+                        margin-bottom: 40px;
+                        border: 1px solid #75c492;
+                        padding: 20px;
+                        background-color: #181818;
                     }
                     .code-title {
                         font-weight: bold;
-                        margin-bottom: 5px;
+                        margin-bottom: 10px;
+                        font-size: 20px;
+                        color: #75c492;
+                    }
+                    h2, h3, h4 {
+                        color: #75c492;
+                    }
+                    p, li {
+                        color: #fffad3;
+                    }
+                    code, pre {
+                        background-color: #1e1e1e;
+                        color: #fffad3;
+                        padding: 2px 4px;
+                        border-radius: 4px;
+                    }
+                    pre {
+                        overflow: auto;
+                    }
+                    a {
+                        color: #75c492;
+                    }
+                    a:hover {
+                        text-decoration: underline;
                     }
                 </style>
             </head>
@@ -198,7 +220,8 @@ def display_analysis():
                         <div class="code-title">Code Block {{ loop.index }}:</div>
                         <pre><code>{{ item.code_block | e }}</code></pre>
                         <div class="code-title">Analysis:</div>
-                        <pre>{{ item.analysis_result }}</pre>
+                        <!-- Render the Markdown output as HTML -->
+                        <div class="analysis-output">{{ item.analysis_html|safe }}</div>
                     </div>
                 {% endfor %}
 
@@ -209,7 +232,13 @@ def display_analysis():
                 </script>
             </body>
             </html>
-        ''', analysis_results=analysis_results, content_label=content_label)
+        ''', analysis_results=[
+            {
+                **item,
+                # Convert Markdown to HTML
+                "analysis_html": markdowner(item['analysis_result'])
+            } for item in analysis_results
+        ], content_label=content_label)
     else:
         return "Content not found or expired.", 404
 

@@ -3,3 +3,4 @@ flask-cors
 langchain
 langchain_google_genai
 requests
+mistune
