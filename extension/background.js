@@ -44,7 +44,7 @@ function startAnalysisFlow(isUserCode, userData) {
     // Set a timeout for error fallback
     const timeoutId = setTimeout(() => {
       chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-    }, 60000); // 60 seconds
+    }, 120000); // 120 seconds
 
     if (isUserCode) {
       // Analyzing user-pasted code
@@ -101,8 +101,8 @@ function extractCodeBlocks() {
     const syntaxChars = /[;{}()\[\]=><]/;
     const containsSyntax = syntaxChars.test(codeContent);
 
-    // Adjust logic as desired. For now, just length & words:
-    if ((codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords)) {
+    // Filter to blocks worth analyzing
+    if (codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords) {
       const uniqueId = `tonkija-code-block-${index}`;
       el.setAttribute('data-tonkija-id', uniqueId);
       codeBlocks.push({
@@ -111,7 +111,18 @@ function extractCodeBlocks() {
       });
     }
   });
-  return codeBlocks;
+
+  // Deduplicate code blocks by their content
+  const seen = new Set();
+  const uniqueBlocks = [];
+  for (const block of codeBlocks) {
+    if (!seen.has(block.content)) {
+      seen.add(block.content);
+      uniqueBlocks.push(block);
+    }
+  }
+
+  return uniqueBlocks;
 }
 
 function sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId) {
