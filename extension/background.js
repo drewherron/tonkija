@@ -1,6 +1,6 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "analyzePage") {
-    startAnalysisFlow(false);
+    handleAnalyzePage();
     sendResponse({status: "ok"});
   } else if (message.action === "analyzeCode") {
     const { provider, apiKey, codeBlocks } = message;
@@ -8,6 +8,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({status: "ok"});
   }
 });
+
+function handleAnalyzePage() {
+  // First, get provider and apiKey
+  chrome.storage.sync.get(['provider'], function (data) {
+    const provider = data.provider || 'openai';
+    chrome.storage.sync.get([provider], function (keyData) {
+      const apiKey = keyData[provider] || '';
+      if (!apiKey) {
+        console.error("No API key found for provider.");
+        return; // No popup to update since user sees popup
+      }
+
+      // Now get the active tab before opening processing.html
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        const activeTab = tabs[0];
+        if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
+          console.error("Active tab is invalid for code extraction.");
+          // The popup closes after user clicks button, no tab opened yet, so no error page needed
+          return;
+        }
+
+        // We have provider, apiKey, and a valid activeTab
+        startAnalysisFlow(false, { provider, apiKey, activeTabId: activeTab.id });
+      });
+    });
+  });
+}
 
 function startAnalysisFlow(isUserCode, userData) {
   // Open processing.html immediately
@@ -20,63 +47,44 @@ function startAnalysisFlow(isUserCode, userData) {
     }, 60000); // 60 seconds
 
     if (isUserCode) {
-      // If analyzing user-pasted code
+      // Analyzing user-pasted code
       const { provider, apiKey, codeBlocks } = userData;
       sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
     } else {
-      // If analyzing page code
-      // First, get provider and apiKey from storage
-      chrome.storage.sync.get(['provider'], function (data) {
-        const provider = data.provider || 'openai';
-        chrome.storage.sync.get([provider], function (keyData) {
-          const apiKey = keyData[provider] || '';
-          if (!apiKey) {
+      // Analyzing page code
+      const { provider, apiKey, activeTabId } = userData;
+
+      // Execute script on the active tab to extract code blocks
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: activeTabId },
+          func: extractCodeBlocks
+        },
+        (results) => {
+          if (chrome.runtime.lastError) {
+            console.error("ExecuteScript Error:", chrome.runtime.lastError.message);
             chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
             clearTimeout(timeoutId);
             return;
           }
 
-          // Query the active tab to inject script
-          chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            const activeTab = tabs[0];
-            if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
+          if (results && results[0] && results[0].result) {
+            const codeBlocks = results[0].result;
+            if (!codeBlocks || codeBlocks.length === 0) {
+              console.error('No code found on this page.');
               chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
               clearTimeout(timeoutId);
               return;
             }
 
-            chrome.scripting.executeScript(
-              {
-                target: { tabId: activeTab.id },
-                func: extractCodeBlocks
-              },
-              (results) => {
-                if (chrome.runtime.lastError) {
-                  console.error("ExecuteScript Error:", chrome.runtime.lastError.message);
-                  chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-                  clearTimeout(timeoutId);
-                  return;
-                }
-
-                if (results && results[0] && results[0].result) {
-                  const codeBlocks = results[0].result;
-                  if (!codeBlocks || codeBlocks.length === 0) {
-                    alert('No code found on this page.');
-                    chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-                    clearTimeout(timeoutId);
-                    return;
-                  }
-
-                  sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
-                } else {
-                  chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-                  clearTimeout(timeoutId);
-                }
-              }
-            );
-          });
-        });
-      });
+            sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
+          } else {
+            console.error("No results returned from executeScript.");
+            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+            clearTimeout(timeoutId);
+          }
+        }
+      );
     }
   });
 }
@@ -93,10 +101,8 @@ function extractCodeBlocks() {
     const syntaxChars = /[;{}()\[\]=><]/;
     const containsSyntax = syntaxChars.test(codeContent);
 
-    if (
-      (codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords)
-      // || (containsKeyword && containsSyntax) // Not sure about this
-    ) {
+    // Adjust logic as desired. For now, just length & words:
+    if ((codeContent.length >= minLength && codeContent.split(/\s+/).length >= minWords)) {
       const uniqueId = `tonkija-code-block-${index}`;
       el.setAttribute('data-tonkija-id', uniqueId);
       codeBlocks.push({
@@ -134,7 +140,7 @@ function sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId) 
         });
         clearTimeout(timeoutId);
       } else {
-        alert(`Error: ${data.error}`);
+        console.error(`Error from server: ${data.error}`);
         chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
         clearTimeout(timeoutId);
       }
