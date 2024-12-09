@@ -156,6 +156,31 @@ def analyze_headers(url: str) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)})
 
+@tool
+def analyze_csp(url: str) -> str:
+    """
+    Analyze Content Security Policy and external resources.
+    """
+    try:
+        response = requests.get(url)
+        csp = response.headers.get('Content-Security-Policy', '')
+
+        # Extract all external resources from HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
+        resources = {
+            'scripts': [s.get('src', '') for s in soup.find_all('script', src=True)],
+            'styles': [s.get('href', '') for s in soup.find_all('link', rel='stylesheet')],
+            'images': [s.get('src', '') for s in soup.find_all('img', src=True)],
+            'fonts': [s.get('href', '') for s in soup.find_all('link', rel='font')],
+        }
+
+        return json.dumps({
+            "csp": csp,
+            "external_resources": resources
+        })
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 # Set up the agent with the tools
 tools = [vt_analyze_code_snippet, url_report, analyze_certificate]
 
