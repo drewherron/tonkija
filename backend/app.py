@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import json
 import mistune
@@ -26,6 +27,18 @@ llm = GoogleGenerativeAI(
         HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
     }
 )
+
+def normalize_markdown(md):
+    # Collapse excessive blank lines (3 or more) into just two blank lines
+    md = re.sub(r'\n{3,}', '\n\n', md)
+
+    # Count occurrences of code fences
+    fence_count = len(re.findall(r'```', md))
+    # If there's an odd number of triple backticks, append one at the end to close it
+    if fence_count % 2 != 0:
+        md += "\n```"
+
+    return md
 
 @tool
 def vt_analyze_code_snippet(code: str) -> str:
@@ -196,7 +209,7 @@ def display_analysis():
                         color: #fffad3;
                     }
                     code, pre {
-                        background-color: #1e1e1e;
+                        background-color: #585858;
                         color: #fffad3;
                         padding: 2px 4px;
                         border-radius: 4px;
@@ -218,7 +231,6 @@ def display_analysis():
                     <div class="code-block">
                         <div class="code-title">Code Block {{ loop.index }}:</div>
                         <pre><code>{{ item.code_block | e }}</code></pre>
-                        <div class="code-title">Analysis:</div>
                         <!-- Render the Markdown output as HTML -->
                         <div class="analysis-output">{{ item.analysis_html|safe }}</div>
                     </div>
@@ -235,7 +247,7 @@ def display_analysis():
             {
                 **item,
                 # Convert Markdown to HTML
-                "analysis_html": markdowner(item['analysis_result'])
+                "analysis_html": markdowner(normalize_markdown(item['analysis_result']))
             } for item in analysis_results
         ], content_label=content_label)
     else:
