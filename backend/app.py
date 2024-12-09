@@ -127,6 +127,35 @@ def analyze_certificate(domain: str) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)})
 
+@tool
+def analyze_headers(url: str) -> str:
+    """
+    Analyze HTTP security headers of a webpage.
+    """
+    try:
+        response = requests.head(url)
+        headers = response.headers
+
+        # Get all security-related headers
+        security_headers = {
+            'Content-Security-Policy',
+            'X-Frame-Options',
+            'X-Content-Type-Options',
+            'Strict-Transport-Security',
+            'X-XSS-Protection',
+            'Referrer-Policy',
+            'Permissions-Policy',
+            'Server'
+        }
+
+        result = {}
+        for header in security_headers:
+            result[header] = headers.get(header, 'Not set')
+
+        return json.dumps(result)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 # Set up the agent with the tools
 tools = [vt_analyze_code_snippet, url_report, analyze_certificate]
 
