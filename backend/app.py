@@ -213,65 +213,55 @@ def analyze_code_blocks():
 renderer = mistune.HTMLRenderer()
 markdowner = mistune.create_markdown(renderer=renderer)
 
-@app.route('/analyze_url', methods=['POST'])
-def analyze_url():
+@app.route('/analyze_page', methods=['POST'])
+def analyze_page():
     try:
         data = request.get_json()
         provider = data.get('provider', 'openai')
         api_key = data.get('apiKey', '')
         url_content = data.get('url', '')
-
-        if not api_key:
-            return jsonify({"success": False, "error": "API key is required."}), 400
-
-        if not url_content:
-            return jsonify({"success": False, "error": "No URL provided."}), 400
-
-        # Perform analysis on the URL
-        analysis_result = perform_analysis(url_content, provider, api_key, 'url')
-
-        content_id = str(uuid.uuid4())
-        analysis_storage[content_id] = {
-            'type': 'analysis',
-            'content': [{
-                'id': 'url-analysis',
-                'code_block': url_content,
-                'analysis_result': analysis_result
-            }],
-            'content_label': 'URL Analysis'
-        }
-
-        return jsonify({"success": True, "content_id": content_id})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/analyze_certificates', methods=['POST'])
-def analyze_certificates():
-    try:
-        data = request.get_json()
-        provider = data.get('provider', 'openai')
-        api_key = data.get('apiKey', '')
         domain = data.get('domain', '')
 
         if not api_key:
             return jsonify({"success": False, "error": "API key is required."}), 400
-        if not domain:
-            return jsonify({"success": False, "error": "No domain provided."}), 400
+        if not url_content or not domain:
+            return jsonify({"success": False, "error": "URL and domain are required."}), 400
 
-        analysis_result = perform_analysis(domain, provider, api_key, 'certificate')
+        # Create combined prompt that uses both tools
+        prompt = f"""
+        You are a security auditor. Analyze this webpage's security profile by:
+        1. Using the url_report tool to analyze the domain and IP information
+        2. Using the analyze_certificate tool to check the SSL/TLS certificate configuration
 
-        content_id = str(uuid.uuid4())
-        analysis_storage[content_id] = {
-            'type': 'analysis',
-            'content': [{
-                'id': 'cert-analysis',
-                'code_block': domain,
-                'analysis_result': analysis_result
-            }],
-            'content_label': 'Certificate Analysis'
-        }
+        Provide a comprehensive security assessment in Markdown format that covers:
+        - Domain and hosting information
+        - Certificate validity and configuration
+        - Any security concerns or recommendations
+        - Overall security rating (High/Medium/Low risk)
 
-        return jsonify({"success": True, "content_id": content_id})
+        URL to analyze: {url_content}
+        Domain: {domain}
+        """
+
+        try:
+            response = agent_executor.invoke({"input": prompt})
+            analysis_result = response.get("output", "No output from analysis.")
+
+            content_id = str(uuid.uuid4())
+            analysis_storage[content_id] = {
+                'type': 'analysis',
+                'content': [{
+                    'id': 'page-analysis',
+                    'code_block': f"URL: {url_content}\nDomain: {domain}",
+                    'analysis_result': analysis_result,
+                    'is_page_analysis': True
+                }],
+                'content_label': 'Page Security Analysis'
+            }
+            return jsonify({"success": True, "content_id": content_id})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -351,9 +341,14 @@ def display_analysis():
                 <h1>Tonkija</h1>
                 {% for item in analysis_results %}
                     <div class="code-block">
-                        <div class="code-title">Code Block {{ loop.index }}:</div>
+                        <div class="code-title">
+                            {% if item.is_page_analysis %}
+                                Page Info:
+                            {% else %}
+                                Code Block {{ loop.index }}:
+                            {% endif %}
+                        </div>
                         <pre><code>{{ item.code_block | e }}</code></pre>
-                        <!-- Render the Markdown output as HTML -->
                         <div class="analysis-output">{{ item.analysis_html|safe }}</div>
                     </div>
                 {% endfor %}

@@ -110,63 +110,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Analyze Page button
   document.getElementById('analyze-page').addEventListener('click', function () {
-    // Send a message to the background script to start analysis
     chrome.runtime.sendMessage({ action: "analyzePage" });
   });
 
-  // Analyze URL button
-  document.getElementById('analyze-url').addEventListener('click', function () {
-    chrome.storage.sync.get(['provider'], function (data) {
-      const provider = data.provider || 'openai';
-      chrome.storage.sync.get([provider], function (keyData) {
-        const apiKey = keyData[provider] || '';
-        if (!apiKey) {
-          alert('Please enter your API key in the settings.');
-          return;
-        }
-
-        // Just send a message to background script to analyze URL
-        chrome.runtime.sendMessage({ action: "analyzeURL", provider, apiKey });
-      });
-    });
-  });
-
-  // Analyze Certificates button
-  document.getElementById('analyze-cert').addEventListener('click', function () {
-    chrome.storage.sync.get(['provider'], function (data) {
-      const provider = data.provider || 'openai';
-      chrome.storage.sync.get([provider], function (keyData) {
-        const apiKey = keyData[provider] || '';
-        if (!apiKey) {
-          alert('Please enter your API key in the settings.');
-          return;
-        }
-
-        chrome.runtime.sendMessage({ action: "analyzeCert", provider, apiKey });
-      });
-    });
-  });
-
-    // Analyze Code (from text box) button
+  // Analyze Code button
   document.getElementById('analyze-code').addEventListener('click', function () {
-    const codeContent = document.getElementById('code-input').value.trim();
-    if (!codeContent) {
-      alert('Please paste your code into the text box.');
-      return;
-    }
-
-    chrome.storage.sync.get(['provider'], function (data) {
-      const provider = data.provider || 'openai';
-      chrome.storage.sync.get([provider], function (keyData) {
-        const apiKey = keyData[provider] || '';
-        if (!apiKey) {
-          alert('Please enter your API key in the settings.');
-          return;
-        }
-
-        // Send a message with codeBlocks
-        const codeBlocks = [{ id: 'user-input-code', content: codeContent }];
-        chrome.runtime.sendMessage({ action: "analyzeCode", provider, apiKey, codeBlocks });
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      const originalTab = tabs[0];  // Get the original tab info
+      
+      chrome.storage.sync.get(['provider'], function (data) {
+        const provider = data.provider || 'openai';
+        chrome.storage.sync.get([provider], function (keyData) {
+          const apiKey = keyData[provider] || '';
+          if (!apiKey) {
+            alert('Please enter your API key in the settings.');
+            return;
+          }
+  
+          const codeContent = document.getElementById('code-input').value.trim();
+          
+          // Send message with original tab info
+          chrome.runtime.sendMessage({ 
+            action: "analyzeCode", 
+            provider, 
+            apiKey,
+            inputCode: codeContent,
+            originalTabId: originalTab.id  // Pass the original tab ID
+          });
+        });
       });
     });
   });

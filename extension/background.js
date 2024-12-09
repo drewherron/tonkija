@@ -1,75 +1,15 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "analyzePage") {
-    handleAnalyzePage();
+    handlePageAnalysis();
     sendResponse({status: "ok"});
   } else if (message.action === "analyzeCode") {
-    const { provider, apiKey, codeBlocks } = message;
-    startAnalysisFlow(true, { provider, apiKey, codeBlocks });
-    sendResponse({status: "ok"});
-  } else if (message.action === "analyzeURL") {
-    const { provider, apiKey } = message;
-    handleAnalyzeURL(provider, apiKey);
-    sendResponse({status: "ok"});
-  } else if (message.action === "analyzeCert") {
-    const { provider, apiKey } = message;
-    handleAnalyzeCert(provider, apiKey);
+    const { provider, apiKey, inputCode, originalTabId } = message;
+    handleCodeAnalysis(provider, apiKey, inputCode, originalTabId);
     sendResponse({status: "ok"});
   }
 });
 
-function handleAnalyzeURL(provider, apiKey) {
-  // Get active tab to get URL
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    const activeTab = tabs[0];
-    if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
-      console.error("Active tab is invalid or no URL available.");
-      return;
-    }
-
-    // We have the URL, now open processing.html
-    chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
-      const processingTabId = processingTab.id;
-      const timeoutId = setTimeout(() => {
-        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-      }, 300000);
-
-      // Send URL to server
-      const payload = { provider, apiKey, url: activeTab.url };
-
-      fetch('http://localhost:5000/analyze_url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            const contentId = data.content_id;
-            const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
-            chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
-              if (chrome.runtime.lastError) {
-                console.error("Error updating tab:", chrome.runtime.lastError);
-              }
-            });
-            clearTimeout(timeoutId);
-          } else {
-            console.error(`Error from server: ${data.error}`);
-            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-            clearTimeout(timeoutId);
-          }
-        })
-        .catch(error => {
-          console.error('Error sending URL for analysis:', error);
-          chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-          clearTimeout(timeoutId);
-        });
-    });
-  });
-}
-
-function handleAnalyzePage() {
+function handlePageAnalysis() {
   // First, get provider and apiKey
   chrome.storage.sync.get(['provider'], function (data) {
     const provider = data.provider || 'openai';
@@ -77,96 +17,92 @@ function handleAnalyzePage() {
       const apiKey = keyData[provider] || '';
       if (!apiKey) {
         console.error("No API key found for provider.");
-        return; // No popup to update since user sees popup
+        return;
       }
 
-      // Now get the active tab before opening processing.html
+      // Get the active tab
       chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         const activeTab = tabs[0];
         if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
-          console.error("Active tab is invalid for code extraction.");
-          // The popup closes after user clicks button, no tab opened yet, so no error page needed
+          console.error("Active tab is invalid.");
           return;
         }
 
-        // We have provider, apiKey, and a valid activeTab
-        startAnalysisFlow(false, { provider, apiKey, activeTabId: activeTab.id });
+        // Open processing.html immediately
+        chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
+          const processingTabId = processingTab.id;
+          const timeoutId = setTimeout(() => {
+            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+          }, 300000);
+
+          // Create payload with URL and domain
+          const domain = new URL(activeTab.url).hostname;
+          const payload = {
+            provider,
+            apiKey,
+            url: activeTab.url,
+            domain
+          };
+
+          // Send request to analyze both URL and certificates
+          fetch('http://localhost:5000/analyze_page', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                const contentId = data.content_id;
+                const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
+                chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
+                  if (chrome.runtime.lastError) {
+                    console.error("Error updating tab:", chrome.runtime.lastError);
+                  }
+                });
+                clearTimeout(timeoutId);
+              } else {
+                console.error(`Error from server: ${data.error}`);
+                chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+                clearTimeout(timeoutId);
+              }
+            })
+            .catch(error => {
+              console.error('Error in page analysis:', error);
+              chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+              clearTimeout(timeoutId);
+            });
+        });
       });
     });
   });
 }
 
-function handleAnalyzeCert(provider, apiKey) {
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    const activeTab = tabs[0];
-    if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
-      console.error("Active tab is invalid or no URL available.");
-      return;
-    }
-
-    const domain = new URL(activeTab.url).hostname;
-
-    chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
-      const processingTabId = processingTab.id;
-      const timeoutId = setTimeout(() => {
-        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-      }, 300000);
-
-      const payload = { provider, apiKey, domain };
-
-      fetch('http://localhost:5000/analyze_certificates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          const contentId = data.content_id;
-          const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
-          chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
-            if (chrome.runtime.lastError) {
-              console.error("Error updating tab:", chrome.runtime.lastError);
-            }
-          });
-          clearTimeout(timeoutId);
-        } else {
-          console.error(`Error from server: ${data.error}`);
-          chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-          clearTimeout(timeoutId);
-        }
-      })
-      .catch(error => {
-        console.error('Error sending domain for certificate analysis:', error);
-        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-        clearTimeout(timeoutId);
-      });
-    });
-  });
-}
-
-function startAnalysisFlow(isUserCode, userData) {
+function handleCodeAnalysis(provider, apiKey, inputCode, originalTabId) {
+  console.log("Starting code analysis with:", { hasInputCode: !!inputCode, provider, originalTabId });
+  
   // Open processing.html immediately
   chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
     const processingTabId = processingTab.id;
-
-    // Set a timeout for error fallback
+    console.log("Created processing tab:", processingTabId);
+    
     const timeoutId = setTimeout(() => {
       chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
     }, 300000);
 
-    if (isUserCode) {
-      // Analyzing user-pasted code
-      const { provider, apiKey, codeBlocks } = userData;
+    if (inputCode) {
+      console.log("Using input code:", inputCode.substring(0, 50) + "...");
+      const codeBlocks = [{ id: 'user-input-code', content: inputCode }];
       sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
     } else {
-      // Analyzing page code
-      const { provider, apiKey, activeTabId } = userData;
-
-      // Execute script on the active tab to extract code blocks
+      // Use the original tab ID directly
+      console.log("No input code, trying to scrape page. Original tab ID:", originalTabId);
+      
       chrome.scripting.executeScript(
         {
-          target: { tabId: activeTabId },
+          target: { tabId: originalTabId },
           func: extractCodeBlocks
         },
         (results) => {
@@ -235,36 +171,40 @@ function extractCodeBlocks() {
 }
 
 function sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId) {
-  const payload = {
+  console.log("Sending to server:", { 
+    numBlocks: codeBlocks.length,
     provider,
-    apiKey,
-    codeBlocks
-  };
+    hasApiKey: !!apiKey
+  });
 
   fetch('http://localhost:5000/analyze_code_blocks', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({
+      provider,
+      apiKey,
+      codeBlocks
+    })
   })
-    .then(response => response.json())
+    .then(response => {
+      console.log("Server response status:", response.status);
+      return response.json();
+    })
     .then(data => {
-      console.log("Response data:", data);
+      console.log("Server response data:", data);
       if (data.success) {
         const contentId = data.content_id;
-        console.log("Content ID:", contentId);
         const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
-        console.log("Analysis URL:", analysisUrl);
         chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
           if (chrome.runtime.lastError) {
             console.error("Error updating tab:", chrome.runtime.lastError);
           }
-          console.log("Tab update completed");
         });
         clearTimeout(timeoutId);
       } else {
-        console.error(`Error from server: ${data.error}`);
+        console.error(`Error from server:`, data);
         chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
         clearTimeout(timeoutId);
       }
