@@ -6,10 +6,11 @@ import mistune
 import tempfile
 import requests
 import subprocess
+import ssl, socket, json
+from datetime import datetime
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
-
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain import hub
 from langchain.tools import tool
@@ -87,8 +88,48 @@ def url_report(url_str: str) -> str:
         return response.text
     return json.dumps({"error": "Unable to retrieve info for this URL"})
 
+@tool
+def analyze_certificate(domain: str) -> str:
+    """
+    Connect to the given domain over TLS and return certificate details as JSON.
+    """
+    try:
+        context = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+                # Extract details
+                issuer = dict(x[0] for x in cert['issuer'])
+                subject = dict(x[0] for x in cert['subject'])
+                notBefore = datetime.strptime(cert['notBefore'], "%b %d %H:%M:%S %Y %Z")
+                notAfter = datetime.strptime(cert['notAfter'], "%b %d %H:%M:%S %Y %Z")
+                days_remaining = (notAfter - datetime.utcnow()).days
+
+                details = {
+                    "issuer": issuer,
+                    "subject": subject,
+                    "not_before": cert['notBefore'],
+                    "not_after": cert['notAfter'],
+                    "days_remaining": days_remaining,
+                    "version": ssock.version(),  # TLS version
+                    "cipher": ssock.cipher()     # (cipher_name, protocol_version, bits)
+                }
+
+                # Check simple conditions
+                issues = []
+                if days_remaining < 30:
+                    issues.append("Certificate will expire soon.")
+                if days_remaining < 0:
+                    issues.append("Certificate is expired!")
+
+                details["issues"] = issues
+
+                return json.dumps(details)
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 # Set up the agent with the tools
-tools = [vt_analyze_code_snippet, url_report]
+tools = [vt_analyze_code_snippet, url_report, analyze_certificate]
 
 base_prompt = hub.pull("langchain-ai/react-agent-template")
 prompt = base_prompt.partial(instructions="Answer the user's request utilizing at most 8 tool calls")
@@ -103,8 +144,9 @@ def perform_analysis(content, provider, api_key, content_type):
     prompt = f"""
     You are a security auditor. Analyze the following {content_type} for potential security vulnerabilities.
     If this is a URL, use the url_report tool to gather domain/IP info.
+    If this is a certificate, use the analyze_certificate tool to get certificate details (issuer, expiration, TLS version, ciphers).
     Else, if this is a code snippet, use the vt_analyze_code_snippet tool to check if this code snippet appears malicious according to VirusTotal.
-    Use the result, along with your own knowledge, to provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate.
+    Use the result to provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate.
     If dealing with a code snippet, do not repeat the full code snippet, it will be included from another source.
     If there are vulnerabilities, describe them briefly and provide recommendations. If appropriate, provide the corrected code.
     If no vulnerabilities are found, say 'No vulnerabilities found.'
@@ -197,6 +239,36 @@ def analyze_url():
                 'analysis_result': analysis_result
             }],
             'content_label': 'URL Analysis'
+        }
+
+        return jsonify({"success": True, "content_id": content_id})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/analyze_certificates', methods=['POST'])
+def analyze_certificates():
+    try:
+        data = request.get_json()
+        provider = data.get('provider', 'openai')
+        api_key = data.get('apiKey', '')
+        domain = data.get('domain', '')
+
+        if not api_key:
+            return jsonify({"success": False, "error": "API key is required."}), 400
+        if not domain:
+            return jsonify({"success": False, "error": "No domain provided."}), 400
+
+        analysis_result = perform_analysis(domain, provider, api_key, 'certificate')
+
+        content_id = str(uuid.uuid4())
+        analysis_storage[content_id] = {
+            'type': 'analysis',
+            'content': [{
+                'id': 'cert-analysis',
+                'code_block': domain,
+                'analysis_result': analysis_result
+            }],
+            'content_label': 'Certificate Analysis'
         }
 
         return jsonify({"success": True, "content_id": content_id})
