@@ -250,13 +250,17 @@ function sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId) 
   })
     .then(response => response.json())
     .then(data => {
+      console.log("Response data:", data);
       if (data.success) {
         const contentId = data.content_id;
+        console.log("Content ID:", contentId);
         const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
+        console.log("Analysis URL:", analysisUrl);
         chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
           if (chrome.runtime.lastError) {
             console.error("Error updating tab:", chrome.runtime.lastError);
           }
+          console.log("Tab update completed");
         });
         clearTimeout(timeoutId);
       } else {
