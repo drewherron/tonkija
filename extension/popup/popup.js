@@ -108,8 +108,13 @@ document.addEventListener('DOMContentLoaded', function () {
   loadSettings();
   updateApiStatusMessage();
 
+  // Analyze Server button
+  document.getElementById('analyze-server').addEventListener('click', function() {
+    chrome.runtime.sendMessage({ action: "analyzeServer" });
+  });
+
   // Analyze Page button
-  document.getElementById('analyze-page').addEventListener('click', function () {
+  document.getElementById('analyze-page').addEventListener('click', function() {
     chrome.runtime.sendMessage({ action: "analyzePage" });
   });
 
@@ -117,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('analyze-code').addEventListener('click', function () {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       const originalTab = tabs[0];  // Get the original tab info
-      
+
       chrome.storage.sync.get(['provider'], function (data) {
         const provider = data.provider || 'openai';
         chrome.storage.sync.get([provider], function (keyData) {
@@ -126,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('Please enter your API key in the settings.');
             return;
           }
-  
+
           const codeContent = document.getElementById('code-input').value.trim();
           
           // Send message with original tab info

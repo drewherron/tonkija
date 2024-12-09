@@ -1,15 +1,15 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "analyzePage") {
+  if (message.action === "analyzeServer") {
+    handleServerAnalysis();
+  } else if (message.action === "analyzePage") {
     handlePageAnalysis();
-    sendResponse({status: "ok"});
   } else if (message.action === "analyzeCode") {
-    const { provider, apiKey, inputCode, originalTabId } = message;
-    handleCodeAnalysis(provider, apiKey, inputCode, originalTabId);
-    sendResponse({status: "ok"});
+    handleCodeAnalysis(message.provider, message.apiKey, message.inputCode);
   }
+  sendResponse({status: "ok"});
 });
 
-function handlePageAnalysis() {
+function handleServerAnalysis() {
   // First, get provider and apiKey
   chrome.storage.sync.get(['provider'], function (data) {
     const provider = data.provider || 'openai';
@@ -44,7 +44,76 @@ function handlePageAnalysis() {
             domain
           };
 
-          // Send request to analyze both URL and certificates
+          // Send request to analyze server security
+          fetch('http://localhost:5000/analyze_server', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                const contentId = data.content_id;
+                const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
+                chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
+                  if (chrome.runtime.lastError) {
+                    console.error("Error updating tab:", chrome.runtime.lastError);
+                  }
+                });
+                clearTimeout(timeoutId);
+              } else {
+                console.error(`Error from server: ${data.error}`);
+                chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+                clearTimeout(timeoutId);
+              }
+            })
+            .catch(error => {
+              console.error('Error in server analysis:', error);
+              chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+              clearTimeout(timeoutId);
+            });
+        });
+      });
+    });
+  });
+}
+
+function handlePageAnalysis() {
+  // First, get provider and apiKey
+  chrome.storage.sync.get(['provider'], function (data) {
+    const provider = data.provider || 'openai';
+    chrome.storage.sync.get([provider], function (keyData) {
+      const apiKey = keyData[provider] || '';
+      if (!apiKey) {
+        console.error("No API key found for provider.");
+        return;
+      }
+
+      // Get the active tab
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        const activeTab = tabs[0];
+        if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
+          console.error("Active tab is invalid.");
+          return;
+        }
+
+        // Open processing.html immediately
+        chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
+          const processingTabId = processingTab.id;
+          const timeoutId = setTimeout(() => {
+            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+          }, 300000);
+
+          // Create payload with URL
+          const payload = {
+            provider,
+            apiKey,
+            url: activeTab.url
+          };
+
+          // Send request to analyze page security
           fetch('http://localhost:5000/analyze_page', {
             method: 'POST',
             headers: {

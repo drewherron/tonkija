@@ -268,8 +268,8 @@ def analyze_code_blocks():
 renderer = mistune.HTMLRenderer()
 markdowner = mistune.create_markdown(renderer=renderer)
 
-@app.route('/analyze_page', methods=['POST'])
-def analyze_page():
+@app.route('/analyze_server', methods=['POST'])
+def analyze_server():
     try:
         data = request.get_json()
         provider = data.get('provider', 'openai')
@@ -282,15 +282,16 @@ def analyze_page():
         if not url_content or not domain:
             return jsonify({"success": False, "error": "URL and domain are required."}), 400
 
-        # Create combined prompt that uses both tools
         prompt = f"""
-        You are a security auditor. Analyze this webpage's security profile by:
+        You are a security auditor. Analyze this server's security profile by:
         1. Using the url_report tool to analyze the domain and IP information
         2. Using the analyze_certificate tool to check the SSL/TLS certificate configuration
 
         Provide a comprehensive security assessment in Markdown format that covers:
         - Domain and hosting information
+        - DNS records and IP details
         - Certificate validity and configuration
+        - TLS version and cipher security
         - Any security concerns or recommendations
         - Overall security rating (High/Medium/Low risk)
 
@@ -306,8 +307,61 @@ def analyze_page():
             analysis_storage[content_id] = {
                 'type': 'analysis',
                 'content': [{
-                    'id': 'page-analysis',
+                    'id': 'server-analysis',
                     'code_block': f"URL: {url_content}\nDomain: {domain}",
+                    'analysis_result': analysis_result,
+                    'is_page_analysis': True
+                }],
+                'content_label': 'Server Security Analysis'
+            }
+
+            return jsonify({"success": True, "content_id": content_id})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/analyze_page', methods=['POST'])
+def analyze_page():
+    try:
+        data = request.get_json()
+        provider = data.get('provider', 'openai')
+        api_key = data.get('apiKey', '')
+        url_content = data.get('url', '')
+        domain = data.get('domain', '')
+
+        if not api_key:
+            return jsonify({"success": False, "error": "API key is required."}), 400
+        if not url_content:
+            return jsonify({"success": False, "error": "URL is required."}), 400
+
+        # Create prompt that uses new tools for page security analysis
+        prompt = f"""
+        You are a security auditor. Analyze this webpage's content security by:
+        1. Using analyze_headers to check HTTP security headers
+        2. Using analyze_csp to evaluate Content Security Policy and external resources
+
+        Provide a comprehensive security assessment in Markdown format that covers:
+        - Analysis of present and missing security headers
+        - Evaluation of Content Security Policy
+        - Assessment of external resource usage and risks
+        - Specific recommendations for improvement
+        - Overall content security rating (High/Medium/Low risk)
+
+        URL to analyze: {url_content}
+        """
+
+        try:
+            response = agent_executor.invoke({"input": prompt})
+            analysis_result = response.get("output", "No output from analysis.")
+
+            content_id = str(uuid.uuid4())
+            analysis_storage[content_id] = {
+                'type': 'analysis',
+                'content': [{
+                    'id': 'page-analysis',
+                    'code_block': f"URL: {url_content}",
                     'analysis_result': analysis_result,
                     'is_page_analysis': True
                 }],
