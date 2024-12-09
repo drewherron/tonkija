@@ -101,13 +101,15 @@ analysis_storage = {}
 
 def perform_analysis(content, provider, api_key, content_type):
     prompt = f"""
-    You are a security auditor. Analyze the following {content_type} code snippet for potential security vulnerabilities.
-    Use the vt_analyze_code_snippet tool to check if this code snippet appears malicious according to VirusTotal.
-    Use this result, along with your own knowledge, to provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate. Do not repeat the full code snippet, it will be included from another source.
+    You are a security auditor. Analyze the following {content_type} for potential security vulnerabilities.
+    If this is a URL, use the url_report tool to gather domain/IP info.
+    Else, if this is a code snippet, use the vt_analyze_code_snippet tool to check if this code snippet appears malicious according to VirusTotal.
+    Use the result, along with your own knowledge, to provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate.
+    If dealing with a code snippet, do not repeat the full code snippet, it will be included from another source.
     If there are vulnerabilities, describe them briefly and provide recommendations. If appropriate, provide the corrected code.
     If no vulnerabilities are found, say 'No vulnerabilities found.'
 
-    Code snippet:
+    Content to analyze:
     ```
     {content}
     ```
