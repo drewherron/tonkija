@@ -114,6 +114,22 @@ document.addEventListener('DOMContentLoaded', function () {
     chrome.runtime.sendMessage({ action: "analyzePage" });
   });
 
+  document.getElementById('analyze-url').addEventListener('click', function () {
+    chrome.storage.sync.get(['provider'], function (data) {
+      const provider = data.provider || 'openai';
+      chrome.storage.sync.get([provider], function (keyData) {
+        const apiKey = keyData[provider] || '';
+        if (!apiKey) {
+          alert('Please enter your API key in the settings.');
+          return;
+        }
+
+        // Just send a message to background script to analyze URL
+        chrome.runtime.sendMessage({ action: "analyzeURL", provider, apiKey });
+      });
+    });
+  });
+
   document.getElementById('analyze-code').addEventListener('click', function () {
     const codeContent = document.getElementById('code-input').value.trim();
     if (!codeContent) {
