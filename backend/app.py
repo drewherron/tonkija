@@ -171,6 +171,38 @@ def analyze_code_blocks():
 renderer = mistune.HTMLRenderer()
 markdowner = mistune.create_markdown(renderer=renderer)
 
+@app.route('/analyze_url', methods=['POST'])
+def analyze_url():
+    try:
+        data = request.get_json()
+        provider = data.get('provider', 'openai')
+        api_key = data.get('apiKey', '')
+        url_content = data.get('url', '')
+
+        if not api_key:
+            return jsonify({"success": False, "error": "API key is required."}), 400
+
+        if not url_content:
+            return jsonify({"success": False, "error": "No URL provided."}), 400
+
+        # Perform analysis on the URL
+        analysis_result = perform_analysis(url_content, provider, api_key, 'url')
+
+        content_id = str(uuid.uuid4())
+        analysis_storage[content_id] = {
+            'type': 'analysis',
+            'content': [{
+                'id': 'url-analysis',
+                'code_block': url_content,
+                'analysis_result': analysis_result
+            }],
+            'content_label': 'URL Analysis'
+        }
+
+        return jsonify({"success": True, "content_id": content_id})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # Route to display the analysis result
 @app.route('/display_analysis')
 def display_analysis():
