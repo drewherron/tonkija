@@ -182,7 +182,7 @@ def analyze_csp(url: str) -> str:
         return json.dumps({"error": str(e)})
 
 # Set up the agent with the tools
-tools = [vt_analyze_code_snippet, url_report, analyze_certificate]
+tools = [vt_analyze_code_snippet, url_report, analyze_certificate, analyze_csp, analyze_headers]
 
 base_prompt = hub.pull("langchain-ai/react-agent-template")
 prompt = base_prompt.partial(instructions="Answer the user's request utilizing at most 8 tool calls")
