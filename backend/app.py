@@ -52,7 +52,6 @@ def vt_analyze_code_snippet(code: str) -> str:
     if not VIRUSTOTAL_API_KEY:
         return json.dumps({"error": "No VirusTotal API key set."})
 
-    # The 'files' parameter in requests can take a tuple (filename, content, content_type)
     files = {
         "file": ("snippet.txt", code.encode('utf-8'), "text/plain")
     }
@@ -140,20 +139,22 @@ agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 # In-memory storage for analysis results
 analysis_storage = {}
 
-def perform_analysis(content, provider, api_key, content_type):
+def analyze_code(code_content, provider, api_key):
     prompt = f"""
-    You are a security auditor. Analyze the following {content_type} for potential security vulnerabilities.
-    If this is a URL, use the url_report tool to gather domain/IP info.
-    If this is a certificate, use the analyze_certificate tool to get certificate details (issuer, expiration, TLS version, ciphers).
-    Else, if this is a code snippet, use the vt_analyze_code_snippet tool to check if this code snippet appears malicious according to VirusTotal.
-    Use the result to provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate.
-    If dealing with a code snippet, do not repeat the full code snippet, it will be included from another source.
-    If there are vulnerabilities, describe them briefly and provide recommendations. If appropriate, provide the corrected code.
+    You are a security auditor. Analyze the following code for potential security vulnerabilities.
+    Use the vt_analyze_code_snippet tool to check if this code appears malicious according to VirusTotal.
+
+    Provide your report in **Markdown format**, using headings (start at level 3), bullet points, and code fences where appropriate.
+    Do not repeat the full code snippet as it will be included from another source.
+    If there are vulnerabilities:
+    - Describe them briefly
+    - Provide specific recommendations
+    - If appropriate, provide corrected code examples
     If no vulnerabilities are found, say 'No vulnerabilities found.'
 
-    Content to analyze:
+    Code to analyze:
     ```
-    {content}
+    {code_content}
     ```
     """
 
@@ -190,7 +191,7 @@ def analyze_code_blocks():
             code_id = code_block['id']
 
             # Perform analysis on code_content
-            analysis_result = perform_analysis(code_content, provider, api_key, 'code')
+            analysis_result = analyze_code(code_content, provider, api_key, 'code')
             analysis_results.append({
                 'id': code_id,
                 'code_block': code_content,
