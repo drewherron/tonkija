@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
     chrome.runtime.sendMessage({ action: "analyzePage" });
   });
 
+  // Analyze URL button
   document.getElementById('analyze-url').addEventListener('click', function () {
     chrome.storage.sync.get(['provider'], function (data) {
       const provider = data.provider || 'openai';
@@ -130,6 +131,23 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Analyze Certificates button
+  document.getElementById('analyze-cert').addEventListener('click', function () {
+    chrome.storage.sync.get(['provider'], function (data) {
+      const provider = data.provider || 'openai';
+      chrome.storage.sync.get([provider], function (keyData) {
+        const apiKey = keyData[provider] || '';
+        if (!apiKey) {
+          alert('Please enter your API key in the settings.');
+          return;
+        }
+
+        chrome.runtime.sendMessage({ action: "analyzeCert", provider, apiKey });
+      });
+    });
+  });
+
+    // Analyze Code (from text box) button
   document.getElementById('analyze-code').addEventListener('click', function () {
     const codeContent = document.getElementById('code-input').value.trim();
     if (!codeContent) {

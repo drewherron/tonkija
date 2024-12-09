@@ -10,6 +10,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { provider, apiKey } = message;
     handleAnalyzeURL(provider, apiKey);
     sendResponse({status: "ok"});
+  } else if (message.action === "analyzeCert") {
+    const { provider, apiKey } = message;
+    handleAnalyzeCert(provider, apiKey);
+    sendResponse({status: "ok"});
   }
 });
 
@@ -27,7 +31,7 @@ function handleAnalyzeURL(provider, apiKey) {
       const processingTabId = processingTab.id;
       const timeoutId = setTimeout(() => {
         chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-      }, 120000);
+      }, 300000);
 
       // Send URL to server
       const payload = { provider, apiKey, url: activeTab.url };
@@ -92,6 +96,55 @@ function handleAnalyzePage() {
   });
 }
 
+function handleAnalyzeCert(provider, apiKey) {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    const activeTab = tabs[0];
+    if (!activeTab || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
+      console.error("Active tab is invalid or no URL available.");
+      return;
+    }
+
+    const domain = new URL(activeTab.url).hostname;
+
+    chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
+      const processingTabId = processingTab.id;
+      const timeoutId = setTimeout(() => {
+        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+      }, 300000);
+
+      const payload = { provider, apiKey, domain };
+
+      fetch('http://localhost:5000/analyze_certificates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const contentId = data.content_id;
+          const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
+          chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
+            if (chrome.runtime.lastError) {
+              console.error("Error updating tab:", chrome.runtime.lastError);
+            }
+          });
+          clearTimeout(timeoutId);
+        } else {
+          console.error(`Error from server: ${data.error}`);
+          chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+          clearTimeout(timeoutId);
+        }
+      })
+      .catch(error => {
+        console.error('Error sending domain for certificate analysis:', error);
+        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+        clearTimeout(timeoutId);
+      });
+    });
+  });
+}
+
 function startAnalysisFlow(isUserCode, userData) {
   // Open processing.html immediately
   chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
@@ -100,7 +153,7 @@ function startAnalysisFlow(isUserCode, userData) {
     // Set a timeout for error fallback
     const timeoutId = setTimeout(() => {
       chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-    }, 120000); // 120 seconds
+    }, 300000);
 
     if (isUserCode) {
       // Analyzing user-pasted code
