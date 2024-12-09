@@ -4,8 +4,9 @@ import uuid
 import json
 import mistune
 import tempfile
-import subprocess
 import requests
+import subprocess
+from urllib.parse import urlparse
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 
@@ -43,8 +44,7 @@ def normalize_markdown(md):
 @tool
 def vt_analyze_code_snippet(code: str) -> str:
     """
-    This tool takes a code snippet (as a string) and uploads it directly
-    to VirusTotal to check if it matches any known malicious files.
+    This tool takes a code snippet (as a string) and uses VirusTotal to check if it matches any known malicious files.
     Returns the JSON response from VirusTotal as a string.
     """
 
@@ -71,8 +71,24 @@ def vt_analyze_code_snippet(code: str) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)})
 
-# Set up the agent with the new vt_analyze_code_snippet tool
-tools = [vt_analyze_code_snippet]
+@tool
+def url_report(url_str: str) -> str:
+    """
+    This tool analyzes the given URL by extracting its domain and calling ipwho.is to get info.
+    """
+    parsed = urlparse(url_str)
+    host = parsed.netloc if parsed.netloc else parsed.path
+    if not host:
+        return json.dumps({"error": "Could not extract host from URL."})
+
+    lookup_url = f"http://ipwho.is/{host}"
+    response = requests.get(lookup_url)
+    if response.status_code == 200:
+        return response.text
+    return json.dumps({"error": "Unable to retrieve info for this URL"})
+
+# Set up the agent with the tools
+tools = [vt_analyze_code_snippet, url_report]
 
 base_prompt = hub.pull("langchain-ai/react-agent-template")
 prompt = base_prompt.partial(instructions="Answer the user's request utilizing at most 8 tool calls")
