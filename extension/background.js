@@ -149,58 +149,66 @@ function handlePageAnalysis() {
   });
 }
 
-function handleCodeAnalysis(provider, apiKey, inputCode, originalTabId) {
-  console.log("Starting code analysis with:", { hasInputCode: !!inputCode, provider, originalTabId });
-  
-  // Open processing.html immediately
-  chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
-    const processingTabId = processingTab.id;
-    console.log("Created processing tab:", processingTabId);
-    
-    const timeoutId = setTimeout(() => {
-      chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-    }, 300000);
+function handleCodeAnalysis(provider, apiKey, inputCode) {
+  console.log("Starting code analysis:", { inputCode, provider });
 
-    if (inputCode) {
-      console.log("Using input code:", inputCode.substring(0, 50) + "...");
+  if (inputCode) {
+    // We have code from the textbox, proceed directly
+    chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
+      const processingTabId = processingTab.id;
+      const timeoutId = setTimeout(() => {
+        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+      }, 300000);
+
       const codeBlocks = [{ id: 'user-input-code', content: inputCode }];
       sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
-    } else {
-      // Use the original tab ID directly
-      console.log("No input code, trying to scrape page. Original tab ID:", originalTabId);
-      
+    });
+  } else {
+    // No input code. We need to scrape the active webpage first.
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      const activeTab = tabs[0];
+      if (!activeTab || !activeTab.id || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
+        console.error("Active tab is invalid or no URL available for code scraping.");
+        return;
+      }
+
+      console.log("No input code, scraping page on tab:", activeTab.id);
+
       chrome.scripting.executeScript(
         {
-          target: { tabId: originalTabId },
+          target: { tabId: activeTab.id },
           func: extractCodeBlocks
         },
         (results) => {
           if (chrome.runtime.lastError) {
             console.error("ExecuteScript Error:", chrome.runtime.lastError.message);
-            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-            clearTimeout(timeoutId);
-            return;
+            return; // Can't scrape code, user sees no result
           }
 
           if (results && results[0] && results[0].result) {
             const codeBlocks = results[0].result;
             if (!codeBlocks || codeBlocks.length === 0) {
               console.error('No code found on this page.');
-              chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-              clearTimeout(timeoutId);
-              return;
+              return; // No code to analyze
             }
 
-            sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
+            // Open processing.html and send them to the server
+              // (After getting the code blocks)
+            chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
+              const processingTabId = processingTab.id;
+              const timeoutId = setTimeout(() => {
+                chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+              }, 300000);
+
+              sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
+            });
           } else {
-            console.error("No results returned from executeScript.");
-            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-            clearTimeout(timeoutId);
+            console.error("No results returned from executeScript when scraping code.");
           }
         }
       );
-    }
-  });
+    });
+  }
 }
 
 function extractCodeBlocks() {
