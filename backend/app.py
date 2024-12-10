@@ -9,7 +9,7 @@ import subprocess
 import ssl, socket, json
 from datetime import datetime
 from urllib.parse import urlparse
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
 from flask_cors import CORS
 from langchain.agents import AgentExecutor, create_react_agent
 from langchain import hub
@@ -397,10 +397,11 @@ def display_analysis():
             <html>
             <head>
                 <title>Tonkija Analysis</title>
+                <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+                <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
                 <link rel="preconnect" href="https://fonts.googleapis.com">
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
                 <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Indie+Flower&family=Marcellus&family=Paytone+One&family=Rubik+Iso&family=Teko:wght@300..700&display=swap" rel="stylesheet">
-
                 <!-- Highlight.js CSS -->
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/base16/default-dark.min.css">
 
@@ -485,6 +486,11 @@ def display_analysis():
         ], content_label=content_label)
     else:
         return "Content not found or expired.", 404
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/png')
 
 # Start the server
 if __name__ == '__main__':
