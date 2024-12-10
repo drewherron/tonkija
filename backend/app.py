@@ -245,7 +245,7 @@ def analyze_code_blocks():
             code_id = code_block['id']
 
             # Perform analysis on code_content
-            analysis_result = analyze_code(code_content, provider, api_key, 'code')
+            analysis_result = analyze_code(code_content, provider, api_key)
             analysis_results.append({
                 'id': code_id,
                 'code_block': code_content,
@@ -272,6 +272,7 @@ markdowner = mistune.create_markdown(renderer=renderer)
 def analyze_server():
     try:
         data = request.get_json()
+        print(f"### request.get_json():\n{data}\n###")
         provider = data.get('provider', 'openai')
         api_key = data.get('apiKey', '')
         url_content = data.get('url', '')
@@ -326,6 +327,7 @@ def analyze_server():
 def analyze_page():
     try:
         data = request.get_json()
+        print(f"### request.get_json():\n{data}\n###")
         provider = data.get('provider', 'openai')
         api_key = data.get('apiKey', '')
         url_content = data.get('url', '')
@@ -384,7 +386,12 @@ def display_analysis():
         analysis_results = stored_data['content']
         content_label = stored_data['content_label']
 
-        # Convert analysis_result from Markdown to HTML
+        def clean_analysis_result(md):
+            # Remove leading/trailing triple backticks with optional language tag
+            md = re.sub(r'^```[a-zA-Z0-9_-]*\n?', '', md)
+            md = re.sub(r'\n```$', '', md)
+            return md
+
         return render_template_string('''
             <!DOCTYPE html>
             <html>
@@ -451,7 +458,7 @@ def display_analysis():
                 {% for item in analysis_results %}
                     <div class="code-block">
                         <div class="code-title">
-                            {% if item.is_page_analysis %}
+                            {% if item.get('is_page_analysis') %}
                                 Page Info:
                             {% else %}
                                 Code Block {{ loop.index }}:
@@ -472,8 +479,8 @@ def display_analysis():
         ''', analysis_results=[
             {
                 **item,
-                # Convert Markdown to HTML
-                "analysis_html": markdowner(normalize_markdown(item['analysis_result']))
+                # Clean and convert the Markdown to HTML
+                "analysis_html": markdowner(normalize_markdown(clean_analysis_result(item['analysis_result'])))
             } for item in analysis_results
         ], content_label=content_label)
     else:
