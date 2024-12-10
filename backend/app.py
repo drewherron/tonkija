@@ -16,9 +16,11 @@ from langchain import hub
 from langchain.tools import tool
 from langchain_google_genai import GoogleGenerativeAI, HarmCategory, HarmBlockThreshold
 
+# Initialize Flask app and enable CORS for Chrome extension
 app = Flask(__name__)
 CORS(app, origins=['chrome-extension://*'])
 
+# Get VirusTotal API key from environment variables
 VIRUSTOTAL_API_KEY = os.getenv("VIRUSTOTAL_API_KEY")
 
 # Define the LLM
@@ -31,6 +33,17 @@ llm = GoogleGenerativeAI(
 )
 
 def normalize_markdown(md):
+    """
+    Normalize Markdown content by fixing spacing and unbalanced code fences.
+
+    Args:
+        md (str): The Markdown content to normalize.
+
+    Returns:
+        str: The normalized Markdown content with:
+            - Excessive blank lines collapsed to a maximum of one (i.e, 2 newlines).
+            - Unbalanced code fences closed with additional triple backticks if needed.
+    """
     # Collapse excessive blank lines (3 or more) into just two blank lines
     md = re.sub(r'\n{3,}', '\n\n', md)
 
@@ -45,22 +58,26 @@ def normalize_markdown(md):
 @tool
 def vt_analyze_code_snippet(code: str) -> str:
     """
-    This tool takes a code snippet (as a string) and uses VirusTotal to check if it matches any known malicious files.
-    Returns the JSON response from VirusTotal as a string.
+    Use VirusTotal to check if a code snippet matches any known malicious files.
+    Input: Code snippet as a string.
+    Output: JSON string with VirusTotal analysis results.
     """
-
+    # Return early if no API key is configured
     if not VIRUSTOTAL_API_KEY:
         return json.dumps({"error": "No VirusTotal API key set."})
 
+    # Prepare the code snippet for upload
     files = {
         "file": ("snippet.txt", code.encode('utf-8'), "text/plain")
     }
 
     try:
+        # Submit code to VirusTotal API
         url = "https://www.virustotal.com/api/v3/files"
         headers = {"x-apikey": VIRUSTOTAL_API_KEY}
         response = requests.post(url, headers=headers, files=files)
 
+        # Check for successful submission
         if response.status_code in (200, 201):
             return response.text
         else:
@@ -74,13 +91,17 @@ def vt_analyze_code_snippet(code: str) -> str:
 @tool
 def url_report(url_str: str) -> str:
     """
-    This tool analyzes the given URL by extracting its domain and calling ipwho.is to get info.
+    Analyze a URL's domain and IP information using ipwho.is.
+    Input: URL as a string.
+    Output: JSON string with domain and IP details.
     """
+    # Extract domain from URL
     parsed = urlparse(url_str)
     host = parsed.netloc if parsed.netloc else parsed.path
     if not host:
         return json.dumps({"error": "Could not extract host from URL."})
 
+    # Query ipwho.is API for domain info
     lookup_url = f"http://ipwho.is/{host}"
     response = requests.get(lookup_url)
     if response.status_code == 200:
@@ -90,20 +111,29 @@ def url_report(url_str: str) -> str:
 @tool
 def analyze_certificate(domain: str) -> str:
     """
-    Connect to the given domain over TLS and return certificate details as JSON.
+    Check the SSL/TLS certificate of a domain and return its details.
+    Input: Domain name as a string.
+    Output: JSON string with certificate details, including issuer, validity, and issues.
     """
     try:
+        # Set up SSL context with default verification
         context = ssl.create_default_context()
+        # Connect to domain on port 443 (HTTPS)
         with socket.create_connection((domain, 443), timeout=5) as sock:
             with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                # Get certificate from connection
                 cert = ssock.getpeercert()
-                # Extract details
+
+                # Parse certificate fields
                 issuer = dict(x[0] for x in cert['issuer'])
                 subject = dict(x[0] for x in cert['subject'])
+
+                # Parse certificate dates
                 notBefore = datetime.strptime(cert['notBefore'], "%b %d %H:%M:%S %Y %Z")
                 notAfter = datetime.strptime(cert['notAfter'], "%b %d %H:%M:%S %Y %Z")
                 days_remaining = (notAfter - datetime.utcnow()).days
 
+                # Compile certificate details
                 details = {
                     "issuer": issuer,
                     "subject": subject,
@@ -114,7 +144,7 @@ def analyze_certificate(domain: str) -> str:
                     "cipher": ssock.cipher()     # (cipher_name, protocol_version, bits)
                 }
 
-                # Check simple conditions
+                # Check for common certificate issues
                 issues = []
                 if days_remaining < 30:
                     issues.append("Certificate will expire soon.")
@@ -131,12 +161,15 @@ def analyze_certificate(domain: str) -> str:
 def analyze_headers(url: str) -> str:
     """
     Analyze HTTP security headers of a webpage.
+    Input: URL as a string.
+    Output: JSON string with the status of key security headers.
     """
     try:
+        # Use HEAD request to get headers without downloading content
         response = requests.head(url)
         headers = response.headers
 
-        # Get all security-related headers
+        # List of important security headers to check
         security_headers = {
             'Content-Security-Policy',
             'X-Frame-Options',
@@ -148,6 +181,7 @@ def analyze_headers(url: str) -> str:
             'Server'
         }
 
+        # Check presence of each header
         result = {}
         for header in security_headers:
             result[header] = headers.get(header, 'Not set')
@@ -159,10 +193,14 @@ def analyze_headers(url: str) -> str:
 @tool
 def analyze_csp(url: str) -> str:
     """
-    Analyze Content Security Policy and external resources.
+    Analyze Content Security Policy and external resources of a webpage.
+    Input: URL as a string.
+    Output: JSON with CSP and lists of external scripts, styles, images, and fonts.
     """
     try:
+        # Get full page content for analysis
         response = requests.get(url)
+        # Extract Content Security Policy header
         csp = response.headers.get('Content-Security-Policy', '')
 
         # Extract all external resources from HTML
@@ -184,9 +222,11 @@ def analyze_csp(url: str) -> str:
 # Set up the agent with the tools
 tools = [vt_analyze_code_snippet, url_report, analyze_certificate, analyze_csp, analyze_headers]
 
+# Load and customize the base prompt template
 base_prompt = hub.pull("langchain-ai/react-agent-template")
 prompt = base_prompt.partial(instructions="Answer the user's request utilizing at most 8 tool calls")
 
+# Create the LangChain agent
 agent = create_react_agent(llm, tools, prompt)
 agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 
@@ -194,6 +234,28 @@ agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False)
 analysis_storage = {}
 
 def analyze_code(code_content, provider, api_key):
+    """
+    Analyze a code snippet for security vulnerabilities.
+
+    This function generates a prompt for the LLM agent to analyze the given code snippet,
+    checking for malicious patterns and providing a security assessment.
+
+    Args:
+        code_content (str): The code snippet to analyze.
+        provider (str): The LLM provider being used (e.g., 'openai').
+        api_key (str): The API key for authentication with the provider.
+
+    Returns:
+        str: A security analysis report in Markdown format. The report may include:
+            - Vulnerabilities found and their descriptions.
+            - Recommendations for mitigation.
+            - Corrected code examples (if applicable).
+            - A message indicating no vulnerabilities if the code is safe.
+
+    Raises:
+        Exception: If the LLM agent invocation fails or encounters an unexpected error.
+    """
+    # Create analysis prompt for the LLM
     prompt = f"""
     You are a security auditor. Analyze the following code for potential security vulnerabilities.
     Use the vt_analyze_code_snippet tool to check if this code appears malicious according to VirusTotal.
@@ -213,10 +275,12 @@ def analyze_code(code_content, provider, api_key):
     """
 
     try:
+        # Run analysis using LangChain agent
         response = agent_executor.invoke({"input": prompt})
         print("Response keys:", response.keys())
         print("Full response:", response)
 
+        # Extract analysis result
         analysis_result = response.get("output", "No output key found in response.")
         return analysis_result.strip()
     except Exception as e:
@@ -226,19 +290,21 @@ def analyze_code(code_content, provider, api_key):
 @app.route('/analyze_code_blocks', methods=['POST'])
 def analyze_code_blocks():
     try:
+        # Get request data and validate inputs
         data = request.get_json()
         print(f"### request.get_json():\n{data}\n###")
         code_blocks = data.get('codeBlocks', [])
         provider = data.get('provider', 'openai')
         api_key = data.get('apiKey', '')
 
+        # Validate required fields
         if not api_key:
             return jsonify({"success": False, "error": "API key is required."}), 400
 
         if not code_blocks:
             return jsonify({"success": False, "error": "No suitable code blocks found for analysis."}), 400
 
-        # For each code block, perform analysis
+        # Analyze each code block
         analysis_results = []
         for code_block in code_blocks:
             code_content = code_block['content']
@@ -252,7 +318,7 @@ def analyze_code_blocks():
                 'analysis_result': analysis_result
             })
 
-        # Store the analysis results
+        # Store results with unique ID
         content_id = str(uuid.uuid4())
         analysis_storage[content_id] = {
             'type': 'analysis',
@@ -268,9 +334,11 @@ def analyze_code_blocks():
 renderer = mistune.HTMLRenderer()
 markdowner = mistune.create_markdown(renderer=renderer)
 
+# Route to handle 'Analyze Server' button
 @app.route('/analyze_server', methods=['POST'])
 def analyze_server():
     try:
+        # Get and validate request data
         data = request.get_json()
         print(f"### request.get_json():\n{data}\n###")
         provider = data.get('provider', 'openai')
@@ -278,11 +346,13 @@ def analyze_server():
         url_content = data.get('url', '')
         domain = data.get('domain', '')
 
+        # Validate required fields
         if not api_key:
             return jsonify({"success": False, "error": "API key is required."}), 400
         if not url_content or not domain:
             return jsonify({"success": False, "error": "URL and domain are required."}), 400
 
+        # Create analysis prompt for server security
         prompt = f"""
         You are a security auditor. Analyze this server's security profile by:
         1. Using the url_report tool to analyze the domain and IP information
@@ -301,9 +371,11 @@ def analyze_server():
         """
 
         try:
+            # Execute analysis
             response = agent_executor.invoke({"input": prompt})
             analysis_result = response.get("output", "No output from analysis.")
 
+            # Store results with unique ID
             content_id = str(uuid.uuid4())
             analysis_storage[content_id] = {
                 'type': 'analysis',
@@ -323,9 +395,11 @@ def analyze_server():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# Route to handle 'Analyze Page' button
 @app.route('/analyze_page', methods=['POST'])
 def analyze_page():
     try:
+        # Get and validate request data
         data = request.get_json()
         print(f"### request.get_json():\n{data}\n###")
         provider = data.get('provider', 'openai')
@@ -333,6 +407,7 @@ def analyze_page():
         url_content = data.get('url', '')
         domain = data.get('domain', '')
 
+        # Validate required fields
         if not api_key:
             return jsonify({"success": False, "error": "API key is required."}), 400
         if not url_content:
@@ -355,9 +430,11 @@ def analyze_page():
         """
 
         try:
+            # Execute analysis using LangChain agent
             response = agent_executor.invoke({"input": prompt})
             analysis_result = response.get("output", "No output from analysis.")
 
+            # Generate unique ID and store results
             content_id = str(uuid.uuid4())
             analysis_storage[content_id] = {
                 'type': 'analysis',
@@ -379,39 +456,46 @@ def analyze_page():
 # Route to display the analysis result
 @app.route('/display_analysis')
 def display_analysis():
+    # Get analysis ID from URL parameters
     content_id = request.args.get('id', None)
 
+    # Check if analysis exists
     if content_id and content_id in analysis_storage:
         stored_data = analysis_storage[content_id]
         analysis_results = stored_data['content']
         content_label = stored_data['content_label']
 
         def clean_analysis_result(md):
-            # Remove leading/trailing triple backticks with optional language tag
+            # Remove any standalone code fences that might interfere with formatting
             md = re.sub(r'^```[a-zA-Z0-9_-]*\n?', '', md)
             md = re.sub(r'\n```$', '', md)
             return md
 
+        # Render analysis results with custom template
         return render_template_string('''
             <!DOCTYPE html>
             <html>
             <head>
                 <title>Tonkija Analysis</title>
+                <!-- Favicon setup -->
                 <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
                 <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+                <!-- Google Fonts setup -->
                 <link rel="preconnect" href="https://fonts.googleapis.com">
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
                 <link href="https://fonts.googleapis.com/css2?family=Graduate&family=Indie+Flower&family=Marcellus&family=Paytone+One&family=Rubik+Iso&family=Teko:wght@300..700&display=swap" rel="stylesheet">
-                <!-- Highlight.js CSS -->
+                <!-- Syntax highlighting -->
                 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/styles/base16/default-dark.min.css">
 
                 <style>
+                    /* Dark theme styling */
                     body {
                         font-family: Arial, sans-serif;
                         margin: 20px;
                         background-color: #272a32;
                         color: #fffad3;
                     }
+                    /* Title styling with custom font */
                     h1 {
                         text-align: center;
                         color: #75c492;
@@ -419,24 +503,29 @@ def display_analysis():
                         font-family: "Rubik Iso", system-ui;
                         font-weight: 400;
                     }
+                    /* Container for each analysis block */
                     .code-block {
                         margin-bottom: 40px;
                         border: 1px solid #75c492;
                         padding: 20px;
                         background-color: #181818;
                     }
+                    /* Title for each analysis section */
                     .code-title {
                         font-weight: bold;
                         margin-bottom: 10px;
                         font-size: 20px;
                         color: #75c492;
                     }
+                    /* Heading colors */
                     h2, h3, h4 {
                         color: #75c492;
                     }
+                    /* Text colors */
                     p, li {
                         color: #fffad3;
                     }
+                    /* Code block styling */
                     code, pre {
                         background-color: #585858;
                         color: #fffad3;
@@ -446,6 +535,7 @@ def display_analysis():
                     pre {
                         overflow: auto;
                     }
+                    /* Link styling */
                     a {
                         color: #75c492;
                     }
@@ -470,7 +560,7 @@ def display_analysis():
                     </div>
                 {% endfor %}
 
-                <!-- Highlight.js Script -->
+                <!-- Initialize syntax highlighting -->
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
                 <script>
                   hljs.highlightAll();
@@ -480,7 +570,7 @@ def display_analysis():
         ''', analysis_results=[
             {
                 **item,
-                # Clean and convert the Markdown to HTML
+                # Process markdown content into HTML for display
                 "analysis_html": markdowner(normalize_markdown(clean_analysis_result(item['analysis_result'])))
             } for item in analysis_results
         ], content_label=content_label)
@@ -489,6 +579,7 @@ def display_analysis():
 
 @app.route('/favicon.ico')
 def favicon():
+    # Serve favicon from static directory
     return send_from_directory(os.path.join(app.root_path, 'static'),
                                'favicon.ico', mimetype='image/png')
 
