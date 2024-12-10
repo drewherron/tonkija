@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
       document.body.classList.remove('settings-hidden');
       updateApiStatusMessage();
     });
+    updateApiStatusMessage();
   });
 
   // Function to load saved settings
@@ -86,19 +87,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Function to update the API status message
   function updateApiStatusMessage() {
+    const apiStatusMessage = document.getElementById('api-status-message');
+    // The element should always exist in popup.html
+    if (!apiStatusMessage) {
+      console.error("api-status-message element not found");
+      return;
+    }
     chrome.storage.sync.get(['provider'], function (data) {
-      const apiStatusMessage = document.getElementById('api-status-message');
       if (data.provider) {
-        let providerDisplayName;
-        // Map provider keys to properly formatted names
-        switch (data.provider) {
-          case 'openai': providerDisplayName = 'OpenAI'; break;
-          case 'anthropic': providerDisplayName = 'Anthropic'; break;
-          case 'google': providerDisplayName = 'Google'; break;
-          default: providerDisplayName = data.provider;
-        }
-        apiStatusMessage.textContent = `Currently using ${providerDisplayName}.`;
+        const provider = data.provider;
+        chrome.storage.sync.get([provider], function (keyData) {
+          const apiKey = keyData[provider] || '';
+          if (!apiKey) {
+            apiStatusMessage.textContent = 'Please add an API key.';
+          } else {
+            let providerDisplayName;
+            switch (provider) {
+              case 'openai': providerDisplayName = 'OpenAI'; break;
+              case 'anthropic': providerDisplayName = 'Anthropic'; break;
+              case 'google': providerDisplayName = 'Google'; break;
+              default: providerDisplayName = provider;
+            }
+            apiStatusMessage.textContent = `Currently using ${providerDisplayName}.`;
+          }
+        });
       } else {
+        // No provider set
         apiStatusMessage.textContent = 'Please add an API key.';
       }
     });
@@ -120,30 +134,26 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Analyze Code button
   document.getElementById('analyze-code').addEventListener('click', function () {
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-      const originalTab = tabs[0];  // Get the original tab info
+    chrome.storage.sync.get(['provider'], function (data) {
+      const provider = data.provider || 'openai';
+      chrome.storage.sync.get([provider], function (keyData) {
+        const apiKey = keyData[provider] || '';
+        if (!apiKey) {
+          alert('Please enter your API key in the settings.');
+          return;
+        }
 
-      chrome.storage.sync.get(['provider'], function (data) {
-        const provider = data.provider || 'openai';
-        chrome.storage.sync.get([provider], function (keyData) {
-          const apiKey = keyData[provider] || '';
-          if (!apiKey) {
-            alert('Please enter your API key in the settings.');
-            return;
-          }
+        const codeContent = document.getElementById('code-input').value.trim();
 
-          const codeContent = document.getElementById('code-input').value.trim();
-          
-          // Send message with original tab info
-          chrome.runtime.sendMessage({ 
-            action: "analyzeCode", 
-            provider, 
-            apiKey,
-            inputCode: codeContent,
-            originalTabId: originalTab.id  // Pass the original tab ID
-          });
+        chrome.runtime.sendMessage({
+          action: "analyzeCode",
+          provider,
+          apiKey,
+          inputCode: codeContent
         });
       });
     });
   });
+  loadSettings();
+  updateApiStatusMessage();
 });
