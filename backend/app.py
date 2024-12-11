@@ -5,6 +5,7 @@ import json
 import mistune
 import tempfile
 import requests
+import dns.resolver
 import subprocess
 import ssl, socket, json
 from datetime import datetime
@@ -44,12 +45,8 @@ def normalize_markdown(md):
             - Excessive blank lines collapsed to a maximum of one (i.e, 2 newlines).
             - Unbalanced code fences closed with additional triple backticks if needed.
     """
-    # Collapse excessive blank lines (3 or more) into just two blank lines
     md = re.sub(r'\n{3,}', '\n\n', md)
-
-    # Count occurrences of code fences
     fence_count = len(re.findall(r'```', md))
-    # If there's an odd number of triple backticks, append one at the end to close it
     if fence_count % 2 != 0:
         md += "\n```"
 
@@ -62,6 +59,7 @@ def vt_analyze_code_snippet(code: str) -> str:
     Input: Code snippet as a string.
     Output: JSON string with VirusTotal analysis results.
     """
+    print("Tool: vt_analyze_code_snippet")
     # Return early if no API key is configured
     if not VIRUSTOTAL_API_KEY:
         return json.dumps({"error": "No VirusTotal API key set."})
@@ -95,6 +93,7 @@ def url_report(url_str: str) -> str:
     Input: URL as a string.
     Output: JSON string with domain and IP details.
     """
+    print("Tool: url_report")
     # Extract domain from URL
     parsed = urlparse(url_str)
     host = parsed.netloc if parsed.netloc else parsed.path
@@ -109,12 +108,54 @@ def url_report(url_str: str) -> str:
     return json.dumps({"error": "Unable to retrieve info for this URL"})
 
 @tool
+def analyze_dns(domain: str) -> str:
+    """
+    Retrieve various DNS records (A, AAAA, MX, TXT, CNAME) for a domain.
+
+    Input: Domain as a string.
+    Output: JSON string containing the DNS records and their values.
+
+    This tool attempts to resolve A, AAAA, MX, TXT, and CNAME records.
+    If a particular record type doesn't exist, it returns an empty list for that type.
+    """
+    print("Tool: analyze_dns")
+    record_types = ['A', 'AAAA', 'MX', 'TXT', 'CNAME']
+    results = {}
+
+    for rtype in record_types:
+        try:
+            answers = dns.resolver.resolve(domain, rtype)
+            records = []
+            for rdata in answers:
+                if rtype == 'MX':
+                    # MX record returns mail exchanger and preference
+                    records.append({
+                        'exchange': rdata.exchange.to_text(),
+                        'preference': rdata.preference
+                    })
+                elif rtype == 'TXT':
+                    # TXT record may consist of multiple strings combined
+                    # rdata.strings is a tuple of bytes, decode them and join
+                    txt_data = ''.join(s.decode('utf-8') for s in rdata.strings)
+                    records.append(txt_data)
+                else:
+                    # For A, AAAA, CNAME just return the record text
+                    records.append(rdata.to_text())
+            results[rtype] = records
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
+            # If no records of this type exist or domain doesn't resolve these records
+            results[rtype] = []
+
+    return json.dumps(results)
+
+@tool
 def analyze_certificate(domain: str) -> str:
     """
     Check the SSL/TLS certificate of a domain and return its details.
     Input: Domain name as a string.
     Output: JSON string with certificate details, including issuer, validity, and issues.
     """
+    print("Tool: analyze_certificate")
     try:
         # Set up SSL context with default verification
         context = ssl.create_default_context()
@@ -140,8 +181,8 @@ def analyze_certificate(domain: str) -> str:
                     "not_before": cert['notBefore'],
                     "not_after": cert['notAfter'],
                     "days_remaining": days_remaining,
-                    "version": ssock.version(),  # TLS version
-                    "cipher": ssock.cipher()     # (cipher_name, protocol_version, bits)
+                    "version": ssock.version(),
+                    "cipher": ssock.cipher()
                 }
 
                 # Check for common certificate issues
@@ -164,6 +205,7 @@ def analyze_headers(url: str) -> str:
     Input: URL as a string.
     Output: JSON string with the status of key security headers.
     """
+    print("Tool: analyze_headers")
     try:
         # Use HEAD request to get headers without downloading content
         response = requests.head(url)
@@ -197,6 +239,7 @@ def analyze_csp(url: str) -> str:
     Input: URL as a string.
     Output: JSON with CSP and lists of external scripts, styles, images, and fonts.
     """
+    print("Tool: analyze_csp")
     try:
         # Get full page content for analysis
         response = requests.get(url)
@@ -220,7 +263,7 @@ def analyze_csp(url: str) -> str:
         return json.dumps({"error": str(e)})
 
 # Set up the agent with the tools
-tools = [vt_analyze_code_snippet, url_report, analyze_certificate, analyze_csp, analyze_headers]
+tools = [vt_analyze_code_snippet, url_report, analyze_dns, analyze_certificate, analyze_csp, analyze_headers]
 
 # Load and customize the base prompt template
 base_prompt = hub.pull("langchain-ai/react-agent-template")
@@ -357,7 +400,7 @@ def analyze_server():
         You are a security auditor. Analyze this server's security profile by:
         1. Using the url_report tool to analyze the domain and IP information
         2. Using the analyze_certificate tool to check the SSL/TLS certificate configuration
-
+        3. Using the analyze_dns tool to retrieve and evaluate DNS records (A, AAAA, MX, TXT, CNAME) for potential misconfigurations, vulnerabilities, or security issues
         Provide a comprehensive security assessment in Markdown format that covers:
         - Domain and hosting information
         - DNS records and IP details
