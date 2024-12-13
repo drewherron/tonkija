@@ -4,7 +4,21 @@ Tonkija is a Chrome extension for automated security analysis of web pages, serv
 
 ## Features
 
-TODO
+- **Server Security Analysis**
+  - Examine SSL/TLS certificates for validity, expiration, and configuration issues.
+  - Retrieve detailed domain and IP information using DNS and hosting records.
+  - Analyze DNS records, including A, AAAA, MX, TXT, and CNAME entries.
+
+- **Webpage Security Evaluation**
+  - Check HTTP security headers for vulnerabilities.
+  - Assess the Content Security Policy (CSP) for proper configurations.
+  - Identify external resource usage (scripts, stylesheets, images, fonts).
+  - Provide a comprehensive content security rating.
+
+- **Code Security Analysis**
+  - Analyze code snippets for potential security vulnerabilities.
+  - Check for malicious patterns using VirusTotal API integration.
+  - Automatically extract and evaluate code blocks from visited web pages.
 
 ## Installation
 
