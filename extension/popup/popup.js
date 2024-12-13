@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', function () {
+  // Establish keep-alive connection
+  const port = chrome.runtime.connect({name: 'keepAlive'});
+  port.onMessage.addListener((message) => {
+    if (message.type === 'ping') {
+      port.postMessage({type: 'pong'});
+    }
+  });
+
   // Get DOM elements
   const settingsIcon = document.getElementById('settings-icon');
   const mainContent = document.getElementById('main-content');

@@ -1,3 +1,21 @@
+// Keep running even on leaving browser
+let keepAlivePort = null;
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'keepAlive') {
+    keepAlivePort = port;
+    port.onDisconnect.addListener(() => {
+      keepAlivePort = null;
+    });
+  }
+});
+
+function keepServiceWorkerAlive() {
+  if (keepAlivePort) {
+    keepAlivePort.postMessage({type: 'ping'});
+  }
+}
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Route message to appropriate handler
@@ -162,64 +180,90 @@ function handlePageAnalysis() {
 function handleCodeAnalysis(provider, apiKey, inputCode) {
   console.log("Starting code analysis:", { inputCode, provider });
 
-  if (inputCode) {
-    // Direct code input from textarea - no need to scrape page
-    chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
-      const processingTabId = processingTab.id;
-      // Set timeout for analysis completion
-      const timeoutId = setTimeout(() => {
-        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-      }, 300000);
+  let processingTabId;
+  let timeoutId;
+  let keepAliveInterval;
 
-      // Create single code block from input
-      const codeBlocks = [{ id: 'user-input-code', content: inputCode }];
-      sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
+  const createProcessingTab = () => {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (tab) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+          return;
+        }
+        processingTabId = tab.id;
+
+        // Start keep-alive interval
+        keepAliveInterval = setInterval(keepServiceWorkerAlive, 20000);
+
+        timeoutId = setTimeout(() => {
+          clearInterval(keepAliveInterval);
+          chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
+        }, 300000);
+
+        resolve();
+      });
     });
+  };
+
+  if (inputCode) {
+    // Direct code input from textarea
+    createProcessingTab()
+      .then(() => {
+        const codeBlocks = [{ id: 'user-input-code', content: inputCode }];
+        return sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
+      })
+      .catch(error => console.error('Error in code analysis:', error));
   } else {
-    // No input code - need to scrape code blocks from current page
+    // Need to scrape code blocks from current page
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       const activeTab = tabs[0];
-      // Verify we can access the page content
-      if (!activeTab || !activeTab.id || !activeTab.url || activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
+      if (!activeTab || !activeTab.id || !activeTab.url || 
+          activeTab.url.startsWith('chrome://') || activeTab.url.startsWith('about:')) {
         console.error("Active tab is invalid or no URL available for code scraping.");
         return;
       }
 
-      console.log("No input code, scraping page on tab:", activeTab.id);
-
-      // Execute code block extraction in the context of the webpage
-      chrome.scripting.executeScript(
-        {
-          target: { tabId: activeTab.id },
-          func: extractCodeBlocks
-        },
-        (results) => {
-          if (chrome.runtime.lastError) {
-            console.error("ExecuteScript Error:", chrome.runtime.lastError.message);
-            return; // Can't scrape code, user sees no result
+      createProcessingTab()
+        .then(() => {
+          return new Promise((resolve, reject) => {
+            chrome.scripting.executeScript(
+              {
+                target: { tabId: activeTab.id },
+                func: extractCodeBlocks
+              },
+              (results) => {
+                if (chrome.runtime.lastError) {
+                  reject(chrome.runtime.lastError);
+                  return;
+                }
+                if (!results?.[0]?.result) {
+                  reject(new Error('No code blocks found'));
+                  return;
+                }
+                resolve(results[0].result);
+              }
+            );
+          });
+        })
+        .then(codeBlocks => {
+          if (!codeBlocks || codeBlocks.length === 0) {
+            throw new Error('No code found on this page.');
           }
-
-          if (results && results[0] && results[0].result) {
-            const codeBlocks = results[0].result;
-            if (!codeBlocks || codeBlocks.length === 0) {
-              console.error('No code found on this page.');
-              return; // No code to analyze
-            }
-
-            // Show processing screen while analysis runs
-            chrome.tabs.create({ url: chrome.runtime.getURL("processing.html") }, (processingTab) => {
-              const processingTabId = processingTab.id;
-              const timeoutId = setTimeout(() => {
-                chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-              }, 300000);
-
-              sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
-            });
-          } else {
-            console.error("No results returned from executeScript when scraping code.");
+          return sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId);
+        })
+        .catch(error => {
+          console.error('Error in code analysis:', error);
+          if (processingTabId) {
+            chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
           }
-        }
-      );
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+          }
+          if (keepAliveInterval) {
+            clearInterval(keepAliveInterval);
+          }
+        });
     });
   }
 }
@@ -258,15 +302,14 @@ function extractCodeBlocks() {
 }
 
 function sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId) {
-  // Log analysis attempt details
   console.log("Sending to server:", {
     numBlocks: codeBlocks.length,
     provider,
-    hasApiKey: !!apiKey
+    hasApiKey: !!apiKey,
+    processingTabId  // Log the tab ID to verify it exists
   });
 
-  // Send code blocks to Flask backend for analysis
-  fetch('http://localhost:5000/analyze_code_blocks', {
+  return fetch('http://localhost:5000/analyze_code_blocks', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -283,25 +326,25 @@ function sendToServer(provider, apiKey, codeBlocks, processingTabId, timeoutId) 
     })
     .then(data => {
       console.log("Server response data:", data);
-      if (data.success) {
-        // Update tab to show analysis results
+      if (data.success && processingTabId) {  // Verify processingTabId exists
         const contentId = data.content_id;
         const analysisUrl = `http://localhost:5000/display_analysis?id=${contentId}`;
-        chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
-          if (chrome.runtime.lastError) {
-            console.error("Error updating tab:", chrome.runtime.lastError);
-          }
+        return new Promise((resolve, reject) => {
+          chrome.tabs.update(processingTabId, { url: analysisUrl }, (updatedTab) => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+              return;
+            }
+            resolve(updatedTab);
+          });
         });
-        clearTimeout(timeoutId);
       } else {
-        console.error(`Error from server:`, data);
-        chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-        clearTimeout(timeoutId);
+        throw new Error(data.error || 'Unknown error occurred');
       }
     })
-    .catch(error => {
-      console.error('Error sending code blocks:', error);
-      chrome.tabs.update(processingTabId, { url: chrome.runtime.getURL('error.html') });
-      clearTimeout(timeoutId);
+    .finally(() => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     });
 }

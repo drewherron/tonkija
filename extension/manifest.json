@@ -15,12 +15,15 @@
     "activeTab",
     "storage",
     "scripting",
-    "tabs"
+    "tabs",
+    "background"
+
   ],
   "host_permissions": [
     "*://*/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   }
 }
